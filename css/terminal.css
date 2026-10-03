@@ -226,7 +226,7 @@ details.more summary { cursor: pointer; color: var(--blue); }
 
 /* ---------- footer, toast ---------- */
 .status { position: sticky; bottom: 0; display: flex; justify-content: space-between; gap: 10px; padding: 3px 10px; padding-bottom: max(3px, env(safe-area-inset-bottom)); background: #0a0a0a; border-top: 1px solid var(--line2); font-size: 11px; flex-wrap: wrap; z-index: 20; }
-.feed.ok { color: var(--up); } .feed.err { color: var(--dn); }
+.feed.ok { color: var(--up); } .feed.err { color: var(--dn); } .feed.warn { color: var(--amber); }
 .toast { position: fixed; left: 50%; bottom: 40px; transform: translateX(-50%); background: var(--amber); color: #000; padding: 6px 14px; font-weight: 600; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: 92vw; z-index: 50; }
 .toast.show { opacity: 1; }
 

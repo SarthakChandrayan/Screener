@@ -32,22 +32,38 @@ Your watchlist, portfolio, alerts and saved screens are stored in your browser's
 
 | Endpoint | Source | Cached |
 |---|---|---|
-| `api/quote.js` | Yahoo Finance chart API: price, change, day range, volume, 52W, intraday sparkline | 15 s |
-| `api/chart.js` | Yahoo Finance OHLCV history | 30 s intraday, 30 min daily |
+| `api/quote.js` | Upstox (if configured), else Yahoo Finance chart API: price, change, day range, volume, 52W, intraday sparkline | 15 s |
+| `api/chart.js` | Upstox daily+ history (if configured), else Yahoo Finance OHLCV | 30 s intraday, 30 min daily |
 | `api/fundamentals.js` | Yahoo Finance quoteSummary: valuation, margins, ROE, debt, analysts, profile | 6 h (plus 12 h in the browser) |
 | `api/search.js` | Yahoo Finance symbol search | 1 h |
 | `api/news.js` | Google News RSS (India edition), with Yahoo as fallback | 5 min |
 
-These are free, unofficial sources. Prices lag by a few seconds up to about 15 minutes, and the sources can change or rate-limit without notice. That's fine for research and tracking, but not for trade execution.
+Without an Upstox token these are free, unofficial sources. Prices lag by a few seconds up to about 15 minutes, and the sources can change or rate-limit without notice. That's fine for research and tracking, but not for trade execution.
 
-### Want real-time prices?
+### Real-time prices with Upstox (free)
 
-Swap `fetchOne` in `api/quote.js` (and the history fetch in `api/chart.js`) for a broker API. Keep the key in a Vercel environment variable, never in the frontend. Cheap options in India (check current pricing):
+Set `UPSTOX_TOKEN` and the terminal switches to live NSE/BSE prices. The status bar then reads **UPSTOX LIVE**.
 
-- **Upstox API**: free for account holders. Use the read-only *Analytics Token* for Market Quote, Historical Data and the WebSocket feed.
-- **Angel One SmartAPI** and **Fyers API**: free with an account.
-- **Dhan**: real-time data plan at around ₹499/month.
-- **Zerodha Kite Connect**: about ₹500/month for market data.
+1. Open an Upstox account if you don't have one. In the [Upstox developer console](https://upstox.com/developer/apps), generate an **Analytics Token**. It's a read-only market-data token, so it can't place orders.
+2. In Vercel, go to your project → **Settings → Environment Variables**. Add `UPSTOX_TOKEN` with the token as its value, then redeploy. Locally, run `UPSTOX_TOKEN=... npm run dev`.
+
+What uses Upstox (`api/_upstox.js`):
+
+- **Quotes**: Full Market Quotes V3, for NSE/BSE stocks and the main NSE indices, India VIX and Sensex.
+- **Charts**: Historical Candle Data V3, for daily, weekly and monthly charts and the screener's technicals.
+- **Ticker lookup**: Instrument Search maps `RELIANCE` → `NSE_EQ|INE002A01018`, cached for a day.
+
+Yahoo is still used for:
+
+- Intraday charts
+- Global indices, FX, commodities and crypto
+- BSE scrip codes
+- Fundamentals and news
+- Anything Upstox can't find
+
+If the token is missing, expired or rejected, the app quietly falls back to Yahoo, and the status bar shows the Upstox error in amber. Watchlist sparklines only appear for Yahoo-priced symbols.
+
+The token is only read on the server, so it never reaches the browser. Never commit it to the repo.
 
 Index constituents live in `js/universes.js`. NSE reshuffles them twice a year, so edit that list when they change.
 
