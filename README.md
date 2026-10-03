@@ -1,4 +1,4 @@
-# Bahi — Indian stock portfolio tracker & screener
+Indian stock portfolio tracker & screener
 
 A single-page app for tracking NSE/BSE holdings and screening stocks.
 
