@@ -1,7 +1,9 @@
 // GET /api/quote?s=RELIANCE.NS,TCS.NS,^NSEI,INR=X
-// Delayed quotes from Yahoo Finance's chart endpoint, plus a small intraday sparkline.
+// Live quotes from Upstox when UPSTOX_TOKEN is set; everything else (and any Upstox failure)
+// comes from Yahoo Finance's chart endpoint, delayed, with a small intraday sparkline.
 
 const { parseSyms, cached, getJSON, mapLimit, send, round } = require("./_lib");
+const upstox = require("./_upstox");
 
 function sample(arr, n) {
   if (arr.length <= n) return arr;
@@ -20,8 +22,6 @@ async function fetchOne(sym) {
     const open = (q.open || []).find(Number.isFinite);
     const prev = m.previousClose ?? m.chartPreviousClose ?? null;
     const price = m.regularMarketPrice;
-    const p = m.currentTradingPeriod?.regular;
-    const now = Date.now() / 1000;
     return {
       price,
       prevClose: prev,
@@ -37,8 +37,8 @@ async function fetchOne(sym) {
       exchange: m.fullExchangeName || m.exchangeName || null,
       currency: m.currency || null,
       time: m.regularMarketTime ? m.regularMarketTime * 1000 : Date.now(),
-      live: p ? now >= p.start && now < p.end : null,
       spark: sample(closes, 40).map(v => round(v, 4)),
+      src: "yahoo",
     };
   });
 }
@@ -46,8 +46,14 @@ async function fetchOne(sym) {
 module.exports = async (req, res) => {
   const syms = parseSyms(req.query.s, 60);
   if (!syms.length) return send(res, 400, { error: "Pass symbols like ?s=RELIANCE.NS,TCS.NS" });
-  const results = await mapLimit(syms, 10, fetchOne);
   const quotes = {};
-  results.forEach((q, i) => { if (q) quotes[syms[i]] = q; });
-  send(res, 200, { quotes, fetchedAt: Date.now() }, 15);
+  let warning = null;
+  if (upstox.enabled()) {
+    try { Object.assign(quotes, await upstox.quotes(syms)); }
+    catch (e) { warning = "Upstox: " + e.message; }
+  }
+  const rest = syms.filter(s => !quotes[s]);
+  const results = await mapLimit(rest, 10, fetchOne);
+  results.forEach((q, i) => { if (q) quotes[rest[i]] = q; });
+  send(res, 200, { quotes, source: upstox.enabled() && !warning ? "upstox" : "yahoo", warning, fetchedAt: Date.now() }, upstox.enabled() ? 5 : 15);
 };

@@ -1,7 +1,7 @@
 // Terminal shell: command line with suggestions, routing, ticker tape, clock and the quote poller.
 
 import { $, $$, esc, fmt, cls, normSym, short, debounce, marketStatus, istNow } from "./util.js";
-import { bus, getQuote, refreshQuotes, searchSymbols } from "./api.js";
+import { bus, feed, getQuote, refreshQuotes, searchSymbols } from "./api.js";
 import { TAPE, STOCKS, MARKETS, nameOf } from "./universes.js";
 import { go, parseHash } from "./nav.js";
 import { FUNCTIONS, SEC_FUNCTIONS } from "./views/help.js";
@@ -184,8 +184,10 @@ setInterval(tick, 1000);
 let timer = null, polling = false, lastOk = 0;
 function setFeed(ok, msg) {
   const f = $("#feed");
-  f.className = "feed " + (ok ? "ok" : "err");
-  f.textContent = ok ? `● DELAYED FEED · ${fmt.time(lastOk)}` : `● FEED ERROR · ${msg}`;
+  if (!ok) { f.className = "feed err"; f.textContent = `● FEED ERROR · ${msg}`; return; }
+  f.className = "feed " + (feed.warning ? "warn" : "ok");
+  f.textContent = feed.source === "upstox" ? `● UPSTOX LIVE · ${fmt.time(lastOk)}`
+    : feed.warning ? `● DELAYED FEED (YAHOO) · ${feed.warning}` : `● DELAYED FEED · ${fmt.time(lastOk)}`;
 }
 async function poll() {
   clearTimeout(timer);

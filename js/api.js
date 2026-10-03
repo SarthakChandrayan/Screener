@@ -5,6 +5,8 @@ import { store } from "./util.js";
 export const bus = new EventTarget();
 const quotes = new Map();
 export const getQuote = s => quotes.get(s);
+// Which backend served the last refresh: "upstox" (live) or "yahoo" (delayed), plus any Upstox error
+export const feed = { source: "yahoo", warning: null };
 
 async function j(url) {
   const r = await fetch(url);
@@ -34,6 +36,8 @@ export async function fetchQuotes(syms) {
   if (!ok.length) throw res[0].reason;
   const out = {};
   ok.forEach(r => Object.assign(out, r.value.quotes || {}));
+  feed.source = ok.some(r => r.value.source === "upstox") ? "upstox" : "yahoo";
+  feed.warning = ok.map(r => r.value.warning).find(Boolean) || null;
   for (const [k, v] of Object.entries(out)) {
     const prev = quotes.get(k);
     v.tick = prev && prev.price !== v.price ? (v.price > prev.price ? 1 : -1) : 0;
