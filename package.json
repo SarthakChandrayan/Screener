@@ -1,0 +1,11 @@
+{
+  "name": "bahi-terminal",
+  "private": true,
+  "description": "Bloomberg-style market terminal, screener and portfolio tracker for NSE/BSE",
+  "scripts": {
+    "dev": "node dev-server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
