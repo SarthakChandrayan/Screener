@@ -6,6 +6,8 @@ import { nameOf, STOCKS } from "../universes.js";
 import { inWatch, addWatch, removeWatch } from "../state.js";
 import { chartPanel } from "../chart.js";
 import { techSummary } from "../tech.js";
+import { TECH, stockRow } from "../scan.js";
+import { PILLARS, scoreRow, verdict, scoreBar } from "../score.js";
 import { panel, kv, newsList, href } from "./common.js";
 import { go } from "../nav.js";
 
@@ -23,6 +25,7 @@ export function mount(el, args, { full = false } = {}) {
   el.innerHTML = `
     <div class="sec-head" id="dHead"></div>
     <div class="grid">
+      ${full || !equity ? "" : panel(`Scorecard <a href="${href("IDEAS")}">Compare with other stocks in IDEAS ›</a>`, `<div id="dScore"><p class="muted pad">Loading…</p></div>`, { cls: "c12" })}
       ${panel(full ? "Chart" : `Chart <a href="${href("GP", sym)}">GP ›</a>`, `<div id="dChart"></div>`, { cls: full ? "c9" : "c8" })}
       ${panel("Technicals", `<div id="dTech"><p class="muted pad">Loading…</p></div>`, { cls: full ? "c3" : "c4" })}
       ${full ? "" : `
@@ -89,8 +92,23 @@ export function mount(el, args, { full = false } = {}) {
       ["Vol vs 20D avg", t.volRatio ? t.volRatio.toFixed(2) + "×" : "—"],
     ]);
   }
-  fetchChart(sym, "1y", true).then(d => { tech = techSummary(d); if (tech) renderTech(); else $("#dTech", el).innerHTML = `<p class="muted pad">Not enough history.</p>`; })
+  fetchChart(sym, "1y", true).then(d => { tech = techSummary(d); renderScore(); if (tech) renderTech(); else $("#dTech", el).innerHTML = `<p class="muted pad">Not enough history.</p>`; })
     .catch(e => { const n = $("#dTech", el); if (n) n.innerHTML = `<p class="muted pad">${esc(e.message)}</p>`; });
+
+  // Plain-English summary: pillar scores, why it looks good, and red flags (same rules as IDEAS, Balanced style)
+  function renderScore() {
+    const box = $("#dScore", el);
+    if (!box || (!fund && !tech)) return;
+    if (tech) TECH.set(sym, tech);
+    const r = scoreRow(stockRow(sym)), v = verdict(r.score);
+    box.innerHTML = `<div class="scorecard">
+      <div class="sc-total"><span class="big ${v.c}">${r.score ?? "—"}<small>/100</small></span><span class="${v.c}">${esc(v.label)}</span>
+        <span class="muted small">Balanced style · ${fund && tech ? "based on fundamentals and price trend" : "partial data, still loading"}</span></div>
+      <dl class="pbars">${PILLARS.map(([k, l, d]) => `<dt title="${esc(d)}">${l}</dt><dd>${scoreBar(r.pillars[k], 110)}<span>${r.pillars[k] ?? "—"}</span></dd>`).join("")}</dl>
+      <div><p class="why-h up">Strengths</p>${r.reasons.length ? `<ul class="why">${r.reasons.slice(0, 4).map(t => `<li>${esc(t)}</li>`).join("")}</ul>` : `<p class="muted small">Nothing stands out as strong.</p>`}</div>
+      <div><p class="why-h dn">Watch out</p>${r.flags.length ? `<ul class="why flags">${r.flags.map(f => `<li class="${f.sev === 2 ? "sev" : ""}">${esc(f.text)}</li>`).join("")}</ul>` : `<p class="muted small">No red flags in the numbers.</p>`}</div>
+    </div>`;
+  }
 
   function renderFund() {
     const f = fund, q = getQuote(sym);
@@ -123,8 +141,8 @@ export function mount(el, args, { full = false } = {}) {
     ])}` : `<p class="muted pad">No profile available.</p>`;
   }
   if (equity && !full) {
-    fetchFundamentals([sym]).then(r => { fund = r[sym] || null; if (fund) { renderFund(); head(); } else throw new Error("No fundamentals for this symbol."); })
-      .catch(e => ["#dVal", "#dProf", "#dAn", "#dProfile"].forEach(id => { const n = $(id, el); if (n) n.innerHTML = `<p class="muted pad">${esc(e.message)}</p>`; }));
+    fetchFundamentals([sym]).then(r => { fund = r[sym] || null; if (fund) { renderFund(); renderScore(); head(); } else throw new Error("No fundamentals for this symbol."); })
+      .catch(e => ["#dVal", "#dProf", "#dAn", "#dProfile", ...(tech ? [] : ["#dScore"])].forEach(id => { const n = $(id, el); if (n) n.innerHTML = `<p class="muted pad">${esc(e.message)}</p>`; }));
   }
 
   if (!full) {

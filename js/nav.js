@@ -8,5 +8,5 @@ export function go(fn, ...args) {
 
 export function parseHash() {
   const parts = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean).map(decodeURIComponent);
-  return { fn: (parts[0] || "TOP").toUpperCase(), args: parts.slice(1) };
+  return { fn: (parts[0] || "PICKS").toUpperCase(), args: parts.slice(1) };
 }
