@@ -2,15 +2,15 @@
 // your watchlist/portfolio or a custom list — or on any CSV you upload (Screener.in, Tickertape…).
 
 import { $, esc, fmt, cls, toast, parseCSV, toNum, downloadCSV, normSym, short, store, debounce } from "../util.js";
-import { getQuote, refreshQuotes, fetchFundamentals, cachedFundamentals, fetchChart, pool } from "../api.js";
-import { nameOf, STOCKS } from "../universes.js";
 import { UNIVERSES, universe, getCustom, setCustom, addWatch } from "../state.js";
-import { techSummary } from "../tech.js";
+import { scanSymbols, stockRow } from "../scan.js";
+import { scoreRow } from "../score.js";
+import { tip } from "../glossary.js";
 import { panel, sortTable, nextSort, href } from "./common.js";
 
 const FIELDS = [
   { k: "sym", l: "Ticker", t: "s" }, { k: "name", l: "Name", t: "s" }, { k: "sector", l: "Sector", t: "s" },
-  { k: "price", l: "Price", t: "px" }, { k: "chgPct", l: "Chg %", t: "pct" }, { k: "mcapCr", l: "MCap ₹Cr", t: "int" },
+  { k: "score", l: "Score", t: "int" }, { k: "price", l: "Price", t: "px" }, { k: "chgPct", l: "Chg %", t: "pct" }, { k: "mcapCr", l: "MCap ₹Cr", t: "int" },
   { k: "pe", l: "P/E" }, { k: "fpe", l: "Fwd P/E" }, { k: "pb", l: "P/B" }, { k: "ps", l: "P/S" }, { k: "peg", l: "PEG" }, { k: "evEbitda", l: "EV/EBITDA" },
   { k: "roe", l: "ROE %" }, { k: "roa", l: "ROA %" }, { k: "opm", l: "OPM %" }, { k: "npm", l: "NPM %" }, { k: "de", l: "D/E" }, { k: "cr", l: "Curr ratio" },
   { k: "revGrowth", l: "Rev gr %", t: "pct" }, { k: "epsGrowth", l: "EPS gr %", t: "pct" }, { k: "dy", l: "Div yld %" }, { k: "beta", l: "Beta" },
@@ -19,9 +19,10 @@ const FIELDS = [
   { k: "rsi", l: "RSI 14", t: "n1" }, { k: "vsSma50", l: "vs 50DMA %", t: "pct" }, { k: "vsSma200", l: "vs 200DMA %", t: "pct" },
   { k: "volRatio", l: "Vol / 20D", t: "x" }, { k: "volatility", l: "Volatility %", t: "n1" },
 ];
-const DEFAULT_VIS = ["sym", "name", "sector", "price", "chgPct", "mcapCr", "pe", "pb", "roe", "de", "opm", "revGrowth", "dy", "offHigh", "r6m", "rsi"];
+const DEFAULT_VIS = ["sym", "name", "sector", "score", "price", "chgPct", "mcapCr", "pe", "pb", "roe", "de", "opm", "revGrowth", "dy", "offHigh", "r6m", "rsi"];
 
 const PRESETS = [
+  { name: "Top scorers", desc: "Balanced score 65+ (see IDEAS)", f: [["score", ">", 65]] },
   { name: "Quality compounders", desc: "ROE > 18%, D/E < 0.5, OPM > 15%", f: [["roe", ">", 18], ["de", "<", 0.5], ["opm", ">", 15]] },
   { name: "Value", desc: "P/E 0–15, P/B < 2, ROE > 12%", f: [["pe", ">", 0], ["pe", "<", 15], ["pb", "<", 2], ["roe", ">", 12]] },
   { name: "Dividend yield", desc: "Yield > 2.5%, D/E < 1", f: [["dy", ">", 2.5], ["de", "<", 1]] },
@@ -47,7 +48,6 @@ const CSV_PATTERNS = {
 const TEXT_KEYS = new Set(["sym", "name", "sector"]);
 const OPS = [">", "≥", "<", "≤", "="];
 
-const TECH = new Map();
 const CSV_KEY = "bahi-screener-v1"; // same key as the original app's CSV screener
 let S = {
   uni: store.get("bahi-eqs-uni", "N50"),
@@ -57,23 +57,8 @@ let S = {
 
 const live = () => S.uni !== "CSV";
 
-function liveRows() {
-  return universe(S.uni).map(s => {
-    const q = getQuote(s) || {}, f = cachedFundamentals(s) || {}, t = TECH.get(s) || {};
-    const price = q.price ?? t.px ?? null, w52h = q.w52h ?? f.w52h;
-    return {
-      sym: s, name: f.name || nameOf(s, q), sector: STOCKS.get(s)?.sector || f.sector || "Other",
-      price, chgPct: q.changePct, mcapCr: f.mcap ? f.mcap / 1e7 : null,
-      pe: f.pe, fpe: f.fpe, pb: f.pb, ps: f.ps, peg: f.peg, evEbitda: f.evEbitda,
-      roe: f.roe, roa: f.roa, opm: f.opm, npm: f.npm, de: f.de, cr: f.cr,
-      revGrowth: f.revGrowth, epsGrowth: f.epsGrowth, dy: f.dy, beta: f.beta,
-      upside: f.target && price ? (f.target / price - 1) * 100 : null,
-      offHigh: w52h && price ? (price / w52h - 1) * 100 : null,
-      r1w: t.r1w, r1m: t.r1m, r3m: t.r3m, r6m: t.r6m, r1y: t.r1y, ytd: t.ytd,
-      rsi: t.rsi, vsSma50: t.vsSma50, vsSma200: t.vsSma200, volRatio: t.volRatio, volatility: t.volatility,
-    };
-  });
-}
+// Score is the Balanced scorecard from IDEAS, so you can filter or sort on it here too
+const liveRows = () => universe(S.uni).map(stockRow).map(r => ({ ...r, score: scoreRow(r).score }));
 
 function loadCSV(text, label) {
   const rows = parseCSV(text);
@@ -180,7 +165,7 @@ export function mount(el) {
     const nc = numCols();
     $("#filterList", el).innerHTML = S.filters.length ? S.filters.map((f, i) => `
       <div class="filter">
-        <select data-fi="${i}" data-f="k" aria-label="Field">${nc.map(c => `<option value="${esc(c.k)}" ${c.k === f.k ? "selected" : ""}>${esc(c.l)}</option>`).join("")}</select>
+        <select data-fi="${i}" data-f="k" aria-label="Field">${nc.map(c => `<option value="${esc(c.k)}" ${c.k === f.k ? "selected" : ""} title="${esc(tip(c.k))}">${esc(c.l)}</option>`).join("")}</select>
         <select data-fi="${i}" data-f="op" aria-label="Condition">${OPS.map(o => `<option ${o === f.op ? "selected" : ""}>${o}</option>`).join("")}</select>
         <input type="number" step="any" data-fi="${i}" data-f="v" value="${f.v}" aria-label="Value">
         <button class="ib x" data-rm="${i}" aria-label="Remove filter">×</button>
@@ -192,14 +177,14 @@ export function mount(el) {
 
   function renderCols() {
     $("#colList", el).innerHTML = live()
-      ? FIELDS.map(c => `<label class="chk"><input type="checkbox" data-col="${c.k}" ${S.vis.has(c.k) ? "checked" : ""}> ${esc(c.l)}</label>`).join("")
+      ? FIELDS.map(c => `<label class="chk" title="${esc(tip(c.k))}"><input type="checkbox" data-col="${c.k}" ${S.vis.has(c.k) ? "checked" : ""}> ${esc(c.l)}</label>`).join("")
       : `<p class="muted">All CSV columns are shown.</p>`;
   }
 
   function renderResults() {
     if (live()) S.rows = liveRows();
     const rows = S.rows.filter(passes);
-    const cols = visCols().map(c => ({ k: c.k, l: esc(c.l), n: c.t !== "s", f: r => cell(c, r), c: r => (c.t === "pct" ? cls(r[c.k]) : ""), v: r => r[c.k] }));
+    const cols = visCols().map(c => ({ k: c.k, l: esc(c.l), tip: live() ? tip(c.k) : "", n: c.t !== "s", f: r => cell(c, r), c: r => (c.t === "pct" ? cls(r[c.k]) : ""), v: r => r[c.k] }));
     $("#count", el).textContent = `${rows.length} of ${S.rows.length}${S.csvLabel && !live() ? " · " + S.csvLabel : ""}`;
     $("#results", el).innerHTML = sortTable(cols, rows.slice(0, 1000), S.sort, { empty: S.rows.length ? "Nothing matches — loosen or remove a filter." : "No data yet." });
   }
@@ -213,32 +198,17 @@ export function mount(el) {
   }
 
   let scanSeq = 0;
-  async function scan() {
+  async function scan(fresh = false) {
     if (!live()) return;
     const my = ++scanSeq;
     S.cols = FIELDS;
     const syms = universe(S.uni);
     const state = $("#scanState", el);
     if (!syms.length) { state.textContent = S.uni === "CUSTOM" ? "Add some tickers to your custom list first." : "This list is empty."; renderAll(); return; }
-    const say = t => { if (my === scanSeq) state.textContent = t; };
-    say(`Fetching quotes for ${syms.length} stocks…`);
     renderAll();
-    await refreshQuotes(syms).catch(() => {});
-    let fundErr = "";
-    await fetchFundamentals(syms, (d, n) => say(`Fundamentals ${d}/${n}…`)).catch(e => { fundErr = e.message; });
-    if (my !== scanSeq) return;
-    renderResults();
-    let done = 0;
-    const need = syms.filter(s => !TECH.has(s));
-    await pool(need, 6, async s => {
-      try { const t = techSummary(await fetchChart(s, "1y", true)); if (t) TECH.set(s, t); } catch { /* skip */ }
-      done++;
-      if (done % 10 === 0) { say(`Technicals ${done}/${need.length}…`); if (my === scanSeq) renderResults(); }
-    });
-    if (my !== scanSeq) return;
-    const withF = syms.filter(s => cachedFundamentals(s)).length;
-    say(`${syms.length} stocks · fundamentals for ${withF}${fundErr ? ` (${fundErr})` : ""} · technicals for ${syms.filter(s => TECH.has(s)).length} · ${fmt.time(Date.now())} IST`);
-    renderAll();
+    const alive = () => my === scanSeq;
+    const done = await scanSymbols(syms, { say: t => { if (alive()) state.textContent = t; }, partial: () => alive() && renderResults(), alive, fresh });
+    if (done) renderAll();
   }
 
   // ---- events ----
@@ -252,7 +222,7 @@ export function mount(el) {
       $("#scanState", el).textContent = "";
     } else { S.cols = FIELDS; scan(); }
   };
-  $("#scan", el).onclick = () => { if (S.uni === "CUSTOM") $("#customSave", el).click(); else { TECH.clear(); scan(); } };
+  $("#scan", el).onclick = () => { if (S.uni === "CUSTOM") $("#customSave", el).click(); else scan(true); };
   $("#customSave", el).onclick = () => {
     const list = [...new Set($("#customText", el).value.split(/[\s,;]+/).map(normSym).filter(Boolean))].slice(0, 200);
     setCustom(list); toast(`Saved ${list.length} ticker${list.length === 1 ? "" : "s"}`); scan();

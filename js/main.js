@@ -10,6 +10,7 @@ import * as wei from "./views/wei.js";
 import * as watch from "./views/watch.js";
 import * as port from "./views/port.js";
 import * as eqs from "./views/eqs.js";
+import * as ideas from "./views/ideas.js";
 import * as most from "./views/most.js";
 import * as heat from "./views/heat.js";
 import * as news from "./views/news.js";
@@ -19,11 +20,11 @@ import * as des from "./views/des.js";
 import * as help from "./views/help.js";
 
 const VIEWS = {
-  TOP: top.mount, WEI: wei.mount, W: watch.mount, PORT: port.mount, EQS: eqs.mount, MOST: most.mount,
+  TOP: top.mount, WEI: wei.mount, W: watch.mount, PORT: port.mount, EQS: eqs.mount, IDEAS: ideas.mount, MOST: most.mount,
   HEAT: heat.mount, N: news.mount, ALRT: alrt.mount, COMP: comp.mount, DES: des.mount, GP: des.mountFull, HELP: help.mount,
 };
 const ALIASES = {
-  HOME: "TOP", MKT: "WEI", WL: "W", WATCH: "W", PF: "PORT", PRT: "PORT", SCR: "EQS", SCREEN: "EQS", IMAP: "HEAT",
+  HOME: "TOP", MKT: "WEI", WL: "W", WATCH: "W", PF: "PORT", PRT: "PORT", SCR: "EQS", SCREEN: "EQS", IDEA: "IDEAS", PICKS: "IDEAS", SUGGEST: "IDEAS", LEARN: "HELP", GLOSSARY: "HELP", IMAP: "HEAT",
   NEWS: "N", CN: "N", ALERT: "ALRT", ALERTS: "ALRT", G: "GP", CHART: "GP", COMPARE: "COMP", "?": "HELP", H: "HELP",
 };
 const SEC_FNS = new Set(SEC_FUNCTIONS.map(f => f[0]));

@@ -16,6 +16,7 @@ Type into the command line at the top (or just start typing anywhere) and press 
 | `WEI` | World indices, currencies, commodities, rates, crypto |
 | `W` | Watchlist with intraday sparklines and 52-week range |
 | `PORT` | Portfolio: live P&L, day P&L, weights, sector allocation, STCG/LTCG estimate, broker CSV import |
+| `IDEAS` | Stock ideas: scores a list out of 100 for your investing style and explains each pick (why it ranks, what to watch out for) |
 | `EQS` | Screener over Nifty 50 / Next 50 / 100, your watchlist, portfolio, a custom list, or an uploaded CSV |
 | `MOST` | Gainers, losers, most active by turnover, near 52-week highs/lows, market breadth |
 | `HEAT` | Sector heatmap, sized by market cap |
@@ -25,6 +26,24 @@ Type into the command line at the top (or just start typing anywhere) and press 
 NSE is the default exchange. Use a 6-digit code for BSE (`500325`), or Yahoo-style symbols for anything else (`^NSEI`, `INR=X`, `GC=F`, `BTC-USD`, `AAPL`).
 
 The screener has 12 built-in screens (quality, value, dividend, GARP, momentum, oversold, near 52W high, volume spike, analyst upside…). It also lets you build your own filters over about 35 fields (P/E, P/B, ROE, D/E, margins, growth, returns, RSI, distance from 200 DMA…), save screens, pick columns and export to CSV.
+
+### Finding stock ideas
+
+New to screening? Start with `IDEAS`. Pick a list (Nifty 50 / Next 50 / 100, your watchlist or a custom list) and a style: Balanced, Long-term quality, Value, Growth, Momentum, or Dividend & safety. Every stock gets 0–100 scores on five questions:
+
+- **Quality**: does the business make good money? (ROE, margins)
+- **Value**: is the price reasonable? (P/E, P/B, EV/EBITDA, PEG)
+- **Growth**: are sales and profits rising?
+- **Momentum**: is the share price in an uptrend?
+- **Safety**: debt, liquidity, volatility, beta
+
+There's also an **Income** score (dividend yield), which only the Dividend & safety style uses.
+
+The style decides how much each one counts. Red flags (losses, heavy debt, collapsing profits, steep falls, overheated RSI) take points off and are listed in plain English. By default, stocks with serious flags are hidden. Banks and NBFCs aren't judged on debt or operating margin. The rules live in `js/score.js`.
+
+Every security page (`DES`) shows the same scorecard. The screener has a **Score** column and a "Top scorers" screen. Hover any column or label to see what it means; `HELP` has a getting-started guide and a full glossary.
+
+The score is a quick read of public numbers, not a recommendation. It's a shortlist to research, not a list of sure things.
 
 Your watchlist, portfolio, alerts and saved screens are stored in your browser's localStorage. Portfolio data from the earlier version of this app carries over.
 
@@ -92,6 +111,9 @@ js/main.js            command line, routing, ticker tape, quote poller
 js/views/*.js         one module per function (TOP, DES, EQS, PORT…)
 js/chart.js           TradingView Lightweight Charts wrapper
 js/tech.js            SMA/EMA/RSI/MACD/Bollinger + summary stats
+js/scan.js            loads quotes + fundamentals + technicals into one row per stock
+js/score.js           scorecard rules: pillars, styles, reasons, red flags
+js/glossary.js        plain-English meaning of every metric
 js/universes.js       Nifty 50 / Next 50 lists, market symbols
 api/*.js              serverless data proxies
 dev-server.js         local server that mimics Vercel
