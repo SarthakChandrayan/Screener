@@ -12,6 +12,7 @@ Type into the command line at the top (or just start typing anywhere) and press 
 | `TCS GP` | Full-screen chart: candles/line/area, 1D–MAX, SMA 20/50/200, EMA 20, Bollinger bands, volume |
 | `INFY N` | News for a stock |
 | `COMP TCS INFY WIPRO` | Relative performance vs Nifty 50, with volatility and max drawdown |
+| `PICKS` | **Start here.** Manager's picks: enter an amount and a risk level and get a ready buy plan (which stocks, ₹ and shares in each, when to buy, why, main risk, when to re-check) |
 | `TOP` | Dashboard: Indian and global indices, FX/commodities, Nifty movers, sector bars, headlines |
 | `WEI` | World indices, currencies, commodities, rates, crypto |
 | `W` | Watchlist with intraday sparklines and 52-week range |
@@ -26,6 +27,21 @@ Type into the command line at the top (or just start typing anywhere) and press 
 NSE is the default exchange. Use a 6-digit code for BSE (`500325`), or Yahoo-style symbols for anything else (`^NSEI`, `INR=X`, `GC=F`, `BTC-USD`, `AAPL`).
 
 The screener has 12 built-in screens (quality, value, dividend, GARP, momentum, oversold, near 52W high, volume spike, analyst upside…). It also lets you build your own filters over about 35 fields (P/E, P/B, ROE, D/E, margins, growth, returns, RSI, distance from 200 DMA…), save screens, pick columns and export to CSV.
+
+### Manager's picks (`PICKS`, the home page)
+
+Enter how much you want to invest and choose Safe, Balanced or Aggressive. The page then writes a short "manager's note":
+
+- **Market mood**: whether the Nifty 50 is above or below its 50- and 200-day averages. This sets how many parts to split your buying into, and how much cash to keep for dips (5–20%).
+- **Allocation**: how much goes into stocks, a Nifty 50 index ETF as a safe core (30% on Safe, 20% on Balanced, none on Aggressive), and cash.
+- **Buy list**: 8–10 stocks from the Nifty 100, at most 2 per sector. Stocks with serious red flags, too much volatility, or too big a fall from their high are left out. Each stock shows:
+  - ₹ amount and number of shares, sized by score and capped per stock
+  - when to buy: buy now, buy slowly, or wait for a dip
+  - why it was picked, and its main risk
+  - a price to re-check at, and the analyst target if there is one
+- **Avoid for now**: big names with serious red flags.
+
+You can download the plan as a CSV. The rules are in `js/views/picks.js` and `js/score.js`. They're rules applied to public data, not personal advice from a registered adviser.
 
 ### Finding stock ideas
 

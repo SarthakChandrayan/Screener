@@ -11,6 +11,7 @@ import * as watch from "./views/watch.js";
 import * as port from "./views/port.js";
 import * as eqs from "./views/eqs.js";
 import * as ideas from "./views/ideas.js";
+import * as picks from "./views/picks.js";
 import * as most from "./views/most.js";
 import * as heat from "./views/heat.js";
 import * as news from "./views/news.js";
@@ -20,11 +21,11 @@ import * as des from "./views/des.js";
 import * as help from "./views/help.js";
 
 const VIEWS = {
-  TOP: top.mount, WEI: wei.mount, W: watch.mount, PORT: port.mount, EQS: eqs.mount, IDEAS: ideas.mount, MOST: most.mount,
+  TOP: top.mount, WEI: wei.mount, W: watch.mount, PORT: port.mount, EQS: eqs.mount, IDEAS: ideas.mount, PICKS: picks.mount, MOST: most.mount,
   HEAT: heat.mount, N: news.mount, ALRT: alrt.mount, COMP: comp.mount, DES: des.mount, GP: des.mountFull, HELP: help.mount,
 };
 const ALIASES = {
-  HOME: "TOP", MKT: "WEI", WL: "W", WATCH: "W", PF: "PORT", PRT: "PORT", SCR: "EQS", SCREEN: "EQS", IDEA: "IDEAS", PICKS: "IDEAS", SUGGEST: "IDEAS", LEARN: "HELP", GLOSSARY: "HELP", IMAP: "HEAT",
+  HOME: "TOP", MKT: "WEI", WL: "W", WATCH: "W", PF: "PORT", PRT: "PORT", SCR: "EQS", SCREEN: "EQS", IDEA: "IDEAS", PICK: "PICKS", MANAGER: "PICKS", ADVISOR: "PICKS", BUY: "PICKS", PLAN: "PICKS", PICKS: "IDEAS", SUGGEST: "IDEAS", LEARN: "HELP", GLOSSARY: "HELP", IMAP: "HEAT",
   NEWS: "N", CN: "N", ALERT: "ALRT", ALERTS: "ALRT", G: "GP", CHART: "GP", COMPARE: "COMP", "?": "HELP", H: "HELP",
 };
 const SEC_FNS = new Set(SEC_FUNCTIONS.map(f => f[0]));
@@ -34,7 +35,7 @@ const fnOf = t => (VIEWS[t] ? t : ALIASES[t]);
 let cur = null;
 function route() {
   const { fn: raw, args } = parseHash();
-  const fn = fnOf(raw) || "TOP";
+  const fn = fnOf(raw) || "PICKS";
   try { cur?.inst?.unmount?.(); } catch { /* ignore */ }
   const host = document.createElement("div");
   host.className = "view-inner";

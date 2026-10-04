@@ -5,6 +5,7 @@ import { GLOSSARY } from "../glossary.js";
 import { panel, href } from "./common.js";
 
 export const FUNCTIONS = [
+  ["PICKS", "Manager's picks: a ready buy plan for your amount and risk level"],
   ["TOP", "Market overview dashboard"],
   ["WEI", "World indices, currencies, commodities, rates"],
   ["W", "Watchlist"],
@@ -30,6 +31,7 @@ export function mount(el) {
   const rows = list => `<table class="t"><tbody>${list.map(([k, d]) => `<tr><td class="l"><a class="sym" href="${href(k)}">${k}</a></td><td class="l">${esc(d)}</td></tr>`).join("")}</tbody></table>`;
   el.innerHTML = `<div class="grid">
     ${panel("New here? Start with this", `<ol class="pad prose steps">
+      <li><b>Just want to know what to buy?</b> — <a class="sym" href="${href("PICKS")}">PICKS</a> gives you a ready plan: which stocks, how much in each, when to buy and when to re-check.</li>
       <li><b>Get a feel for the market</b> — <a class="sym" href="${href("TOP")}">TOP</a> shows how the big indices and sectors are doing today.</li>
       <li><b>Find ideas</b> — <a class="sym" href="${href("IDEAS")}">IDEAS</a> scores the Nifty 100 (or your own list) and shows the best-looking companies for your style, with reasons and red flags in plain English.</li>
       <li><b>Research one</b> — click a ticker, or type it (e.g. <code>TITAN</code>) and press Enter. The scorecard at the top sums it up; the panels below have the detail.</li>
