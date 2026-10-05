@@ -1,4 +1,4 @@
-Bahi Terminal — a Bloomberg-style market terminal for Indian investors
+Screener — stock ideas, buy plans and a market terminal for Indian investors
 
 A keyboard-driven terminal for NSE/BSE: live market monitor, security pages with charts and fundamentals, a screener, watchlist, portfolio tracker, movers, sector heatmap, news and price alerts. It's a static site plus a few serverless functions, with no build step and no dependencies.
 

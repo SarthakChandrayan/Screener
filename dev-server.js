@@ -36,4 +36,4 @@ http.createServer(async (req, res) => {
     res.writeHead(200, { "Content-Type": TYPES[path.extname(file)] || "application/octet-stream" });
     res.end(buf);
   });
-}).listen(PORT, () => console.log(`Bahi Terminal running at http://localhost:${PORT}`));
+}).listen(PORT, () => console.log(`Screener running at http://localhost:${PORT}`));

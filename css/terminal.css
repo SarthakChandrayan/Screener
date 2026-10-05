@@ -1,4 +1,4 @@
-/* Bahi Terminal — dense, dark, amber-on-black */
+/* Screener — dense, dark, amber-on-black */
 :root {
   --bg: #000; --panel: #0a0a0a; --panel2: #111; --line: #232323; --line2: #333;
   --text: #e5e5e5; --muted: #8b8b8b; --amber: #ffa028; --amber-dim: #8a5410; --blue: #4da3ff;
