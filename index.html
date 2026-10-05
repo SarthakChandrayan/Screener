@@ -16,10 +16,11 @@
   <a class="logo" href="#/PICKS" aria-label="Bahi Terminal home">BAHI<span>TERMINAL</span></a>
   <form id="cmdForm" class="cmd" role="search" autocomplete="off">
     <span class="prompt" aria-hidden="true">&gt;</span>
-    <input id="cmd" spellcheck="false" autocapitalize="characters" placeholder="Ticker or function — RELIANCE · TCS GP · EQS · HELP" aria-label="Command line" role="combobox" aria-controls="suggest" aria-expanded="false" aria-autocomplete="list">
+    <input id="cmd" spellcheck="false" autocapitalize="characters" placeholder="Search a stock — e.g. TCS, Reliance, HDFC Bank" aria-label="Command line" role="combobox" aria-controls="suggest" aria-expanded="false" aria-autocomplete="list">
     <button class="go" type="submit">GO</button>
     <div id="suggest" class="suggest hidden" role="listbox"></div>
   </form>
+  <button id="viewToggle" class="btn vt" type="button" title="Switch between the simple layout and the full terminal"></button>
   <div class="clockbox"><span id="mkt" class="mkt"></span><span id="clock" class="clock"></span></div>
 </header>
 <div id="tape" class="tape" aria-label="Market ticker"></div>
