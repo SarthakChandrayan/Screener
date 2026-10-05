@@ -45,6 +45,28 @@ Enter how much you want to invest and choose Safe, Balanced or Aggressive. The p
 
 You can download the plan as a CSV. The rules are in `js/views/picks.js` and `js/score.js`. They're rules applied to public data, not personal advice from a registered adviser.
 
+### Paper trading (`PAPER`)
+
+Practise with pretend money (₹10 lakh by default) at live prices. It's delivery trading only: no intraday and no short selling.
+
+- **Orders**:
+  - market, limit, and stop-loss
+  - on a buy, you can attach a stop-loss and a target; whichever fills first cancels the other
+  - orders only fill during NSE hours
+- **Realistic fills**:
+  - 0.05% slippage on market and stop orders
+  - Indian delivery charges on every trade: ₹20 brokerage, 0.1% STT, exchange and SEBI fees, GST, 0.015% stamp duty, and a DP charge when you sell
+  - each sale is matched against your oldest shares first
+- **While you're away**: open orders are checked against each day's high and low. An order fills at its price, or at the open if the stock gapped past it.
+- **Test the Buy plan** in one click, using the latest saved plan.
+- **Analysis**:
+  - your account vs the Nifty 50
+  - win rate, average win vs loss, profit factor, average per trade, worst fall from peak, charges paid
+  - results by trade reason and by sector
+  - plain-English insights such as "you sell winners early and hold losers"
+
+Code lives in `js/paper.js` (engine) and `js/views/paper.js` (page). Data is saved in this browser under its own key.
+
 ### Can you trust it? Track record and data checks
 
 - **Track record (`TRACK`)**: every buy plan is saved in your browser, once a day per risk level, with that day's prices. The page shows how each plan has done compared with buying the Nifty 50 on the same day, and gives an overall verdict. Plans count once they are 30 days old. Returns are price only, without dividends.
