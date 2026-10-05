@@ -61,9 +61,15 @@ export function committed(sym) {
 
 /* ---------- placing orders ---------- */
 // type: market | limit | sl (stop-loss sell) | target (limit sell above price)
-export function placeOrder({ sym, name, sector, side, type, qty, price, refPx, tag = "", note = "", sl, target }) {
+// type "trail" = trailing stop-loss: trigger follows the highest price since placing, trailPct below it.
+export function placeOrder({ sym, name, sector, side, type, qty, price, refPx, tag = "", note = "", mood = "", sl, target, trailPct }) {
   qty = Math.floor(qty);
   if (!(qty > 0)) throw new Error("Enter a quantity of at least 1 share.");
+  if (type === "trail") {
+    if (!(trailPct > 0 && trailPct < 50)) throw new Error("Enter a trailing distance between 0.5% and 50%.");
+    if (!(refPx > 0)) throw new Error("Waiting for a live price.");
+    price = trailStop(refPx, trailPct);
+  }
   if (type !== "market" && !(price > 0)) throw new Error("Enter a price for this order type.");
   if (side === "buy") {
     const need = qty * (type === "market" ? refPx : price) * 1.003;
@@ -75,10 +81,34 @@ export function placeOrder({ sym, name, sector, side, type, qty, price, refPx, t
       throw new Error(free > 0 ? `You can sell at most ${free} share${free === 1 ? "" : "s"}; the rest are reserved by your open stop-loss/target or sell orders.` : "All your shares are reserved by open stop-loss/target or sell orders. Cancel those first.");
     }
   }
-  const o = { id: uid(), sym, name, sector, side, type, qty, price: type === "market" ? null : price, refPx, tag, note, status: "open", createdAt: Date.now(), bracket: side === "buy" && (sl > 0 || target > 0) ? { sl: sl || null, target: target || null } : null };
+  const bracket = side === "buy" && (sl > 0 || target > 0 || trailPct > 0) ? { sl: sl || null, target: target || null, trailPct: type !== "trail" && trailPct > 0 ? trailPct : null } : null;
+  const o = { id: uid(), sym, name, sector, side, type, qty, price: type === "market" ? null : price, refPx, tag, note, mood, status: "open", createdAt: Date.now(), bracket };
+  if (type === "trail") { o.trailPct = trailPct; o.peak = refPx; }
   A.orders.push(o);
   save();
   return o;
+}
+
+const trailStop = (peak, pct) => Math.round(peak * (1 - pct / 100) * 20) / 20;
+
+// Change the price (limit, stop-loss, target) or trailing distance of an open order
+export function modifyOrder(id, value) {
+  const o = A.orders.find(x => x.id === id);
+  if (!o || o.status !== "open" || o.type === "market") throw new Error("Only open limit, stop-loss, target or trailing orders can be changed.");
+  if (!(value > 0)) throw new Error("Enter a value above zero.");
+  if (o.type === "trail") { if (value >= 50) throw new Error("Trailing distance must be under 50%."); o.trailPct = value; o.price = trailStop(o.peak, value); }
+  else {
+    if (o.side === "buy" && value * o.qty * 1.003 > available() + o.qty * o.price * 1.003) throw new Error("Not enough free cash for that price.");
+    o.price = value;
+  }
+  o.modifiedAt = Date.now();
+  save();
+  return o;
+}
+
+export function setLesson(closedId, text) {
+  const t = A.closed.find(x => x.id === closedId);
+  if (t) { t.lesson = String(text).slice(0, 300); save(); }
 }
 
 export function cancelOrder(id, why = "cancelled") {
@@ -94,7 +124,9 @@ function fill(o, px, at = Date.now()) {
     if (value + c.total > A.cash + 1e-6) { o.status = "rejected"; o.reason = "Not enough cash when the order triggered"; o.closedAt = at; return null; }
     A.cash -= value + c.total;
     const p = (A.positions[o.sym] ||= { name: o.name, sector: o.sector, lots: [] });
-    p.lots.push({ qty: o.qty, px, at, cost: c.total / o.qty, tag: o.tag });
+    // risk per share = distance to the stop-loss attached at entry (for R-multiples)
+    const stop = o.bracket?.sl || (o.bracket?.trailPct ? trailStop(px, o.bracket.trailPct) : null);
+    p.lots.push({ qty: o.qty, px, at, cost: c.total / o.qty, tag: o.tag, mood: o.mood || "", risk: stop && stop < px ? px - stop : null });
   } else {
     const have = posQty(o.sym);
     if (o.qty > have) { o.status = "rejected"; o.reason = "Shares no longer held"; o.closedAt = at; return null; }
@@ -108,7 +140,8 @@ function fill(o, px, at = Date.now()) {
       A.closed.push({
         id: uid(), sym: o.sym, name: o.name || p.name, sector: o.sector || p.sector, qty: q,
         buyPx: lot.px, sellPx: px, buyAt: lot.at, sellAt: at, tag: lot.tag || o.tag || "", exitBy: o.type,
-        gross: (px - lot.px) * q, costs: buyCost + sellCost, pnl: (px - lot.px) * q - buyCost - sellCost,
+        gross: (px - lot.px) * q, costs: buyCost + sellCost, pnl: (px - lot.px) * q - buyCost - sellCost, mood: lot.mood || "",
+        r: lot.risk ? ((px - lot.px) * q - buyCost - sellCost) / (lot.risk * q) : null,
         days: Math.max(0, Math.round((at - lot.at) / 864e5)),
       });
       lot.qty -= q; left -= q;
@@ -122,9 +155,11 @@ function fill(o, px, at = Date.now()) {
   if (o.oco) A.orders.filter(x => x.oco === o.oco && x.id !== o.id && x.status === "open").forEach(x => { x.status = "cancelled"; x.reason = "Partner order filled"; x.closedAt = at; });
   // a bracket buy creates its stop-loss and target as soon as it fills
   if (o.side === "buy" && o.bracket) {
-    const oco = o.bracket.sl && o.bracket.target ? uid() : null;
+    const stopType = o.bracket.trailPct ? "trail" : o.bracket.sl ? "sl" : null;
+    const oco = stopType && o.bracket.target ? uid() : null;
     const base = { sym: o.sym, name: o.name, sector: o.sector, side: "sell", qty: o.qty, tag: o.tag, status: "open", createdAt: at, oco, parent: o.id };
-    if (o.bracket.sl) A.orders.push({ ...base, id: uid(), type: "sl", price: o.bracket.sl });
+    if (stopType === "trail") A.orders.push({ ...base, id: uid(), type: "trail", trailPct: o.bracket.trailPct, peak: px, price: trailStop(px, o.bracket.trailPct) });
+    else if (stopType === "sl") A.orders.push({ ...base, id: uid(), type: "sl", price: o.bracket.sl });
     if (o.bracket.target) A.orders.push({ ...base, id: uid(), type: "target", price: o.bracket.target });
   }
   return o;
@@ -138,6 +173,7 @@ const r2 = n => Math.round(n * 100) / 100;
 export function checkLive(getQuote, marketOpen) {
   if (!marketOpen) return [];
   const done = [];
+  let moved = false;
   for (const o of A.orders.filter(x => x.status === "open")) {
     const q = getQuote(o.sym), px = q?.price;
     if (!(px > 0)) continue;
@@ -146,9 +182,13 @@ export function checkLive(getQuote, marketOpen) {
     else if (o.type === "limit") at = o.side === "buy" ? (px <= o.price ? px : null) : (px >= o.price ? px : null);
     else if (o.type === "target") at = px >= o.price ? px : null;
     else if (o.type === "sl") at = px <= o.price ? slip(px, "sell") : null;
+    else if (o.type === "trail") {
+      if (px <= o.price) at = slip(px, "sell");
+      else if (px > o.peak) { o.peak = px; o.price = trailStop(px, o.trailPct); moved = true; }
+    }
     if (at != null && fill(o, r2(at))) done.push(o);
   }
-  if (done.length) save();
+  if (done.length || moved) save();
   return done;
 }
 
@@ -170,6 +210,11 @@ export function checkHistory(o, candles) {
     else if (o.type === "limit" && o.side === "buy") { if (lo <= o.price) at = Math.min(op, o.price); }
     else if (o.type === "limit" || o.type === "target") { if (hi >= o.price) at = Math.max(op, o.price); }
     else if (o.type === "sl" && lo <= o.price) at = slip(Math.min(op, o.price), "sell");
+    else if (o.type === "trail") {
+      // check against yesterday's trigger first, then let today's high raise it (conservative)
+      if (lo <= o.price) at = slip(Math.min(op, o.price), "sell");
+      else if (hi > o.peak) { o.peak = hi; o.price = trailStop(hi, o.trailPct); save(); }
+    }
     if (at == null) continue;
     const when = (candles.t[i] + 6 * 3600) * 1000; // that trading day
     const ok = !!fill(o, r2(at), Math.min(when, Date.now()));
@@ -224,7 +269,9 @@ export function stats() {
     totalCharges: A.fills.reduce((a, f) => a + f.costs, 0),
     best: C.slice().sort((a, b) => b.pnl - a.pnl)[0] || null, worst: C.slice().sort((a, b) => a.pnl - b.pnl)[0] || null,
     holdWin: avg(wins, "days"), holdLoss: avg(losses, "days"),
-    maxDD, ddFrom, ddTo, byTag: group("tag"), bySector: group("sector"),
+    maxDD, ddFrom, ddTo, byTag: group("tag"), bySector: group("sector"), byMood: group("mood"),
+    avgR: (() => { const r = C.filter(t => t.r != null); return r.length ? r.reduce((a, t) => a + t.r, 0) / r.length : null; })(),
+    rCount: C.filter(t => t.r != null).length,
     grossProfit: sum(C, "gross"),
   };
 }
