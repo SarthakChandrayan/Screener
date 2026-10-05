@@ -45,6 +45,11 @@ Enter how much you want to invest and choose Safe, Balanced or Aggressive. The p
 
 You can download the plan as a CSV. The rules are in `js/views/picks.js` and `js/score.js`. They're rules applied to public data, not personal advice from a registered adviser.
 
+### Can you trust it? Track record and data checks
+
+- **Track record (`TRACK`)**: every buy plan is saved in your browser, once a day per risk level, with that day's prices. The page shows how each plan has done compared with buying the Nifty 50 on the same day, and gives an overall verdict. Plans count once they are 30 days old. Returns are price only, without dividends.
+- **Data checks (`js/dataqual.js`)**: a stock isn't recommended if more than one key number is missing or if its numbers contradict each other. Examples are a P/E that doesn't match price ÷ earnings, live price and history that disagree (a stock split the data hasn't caught up with), or impossible values. Every pick shows a ✓ / ◐ / ✕ data badge; hover over it for details. Skipped stocks are listed on the buy plan.
+
 ### Finding stock ideas
 
 New to screening? Start with `IDEAS`. Pick a list (Nifty 50 / Next 50 / 100, your watchlist or a custom list) and a style: Balanced, Long-term quality, Value, Growth, Momentum, or Dividend & safety. Every stock gets 0–100 scores on five questions:

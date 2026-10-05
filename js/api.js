@@ -77,6 +77,8 @@ export function cachedFundamentals(sym) {
   const e = fcache[sym];
   return e && Date.now() - e.at < FTTL ? e.d : null;
 }
+// When this browser last fetched a stock's fundamentals (ms), or null
+export const fundamentalsAt = sym => (cachedFundamentals(sym) ? fcache[sym].at : null);
 export async function fetchFundamentals(syms, onProgress) {
   const need = syms.filter(s => !cachedFundamentals(s));
   let done = syms.length - need.length, errors = 0, lastErr = null;

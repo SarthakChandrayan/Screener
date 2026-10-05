@@ -6,6 +6,7 @@ import { panel, href } from "./common.js";
 
 export const FUNCTIONS = [
   ["PICKS", "Manager's picks: a ready buy plan for your amount and risk level"],
+  ["TRACK", "Track record: how past buy plans did vs the Nifty 50"],
   ["TOP", "Market overview dashboard"],
   ["WEI", "World indices, currencies, commodities, rates"],
   ["W", "Watchlist"],

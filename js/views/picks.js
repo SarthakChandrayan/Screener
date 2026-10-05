@@ -4,7 +4,9 @@
 
 import { $, esc, fmt, cls, short, store, toast, downloadCSV } from "../util.js";
 import { universe, addWatch } from "../state.js";
-import { fetchChart } from "../api.js";
+import { fetchChart, getQuote, feed } from "../api.js";
+import { dataCheck, dataBadge } from "../dataqual.js";
+import { savePlan } from "../track.js";
 import { techSummary } from "../tech.js";
 import { scanSymbols, stockRow, TECH } from "../scan.js";
 import { scoreRow, verdict } from "../score.js";
@@ -76,14 +78,17 @@ function reviewLevel(r, t) {
 }
 
 function buildPlan(rows, prof, amount, mood) {
-  const scored = rows.map(r => ({ ...r, ...scoreRow(r, { w: prof.w }) }));
-  const eligible = scored
+  const scored = rows.map(r => ({ ...r, ...scoreRow(r, { w: prof.w }), dq: dataCheck(r) }));
+  const candidates = scored
     .filter(r => r.score != null && r.coverage >= 0.6 && r.score >= prof.minScore && ok(r.price))
     .filter(r => !r.flags.some(f => f.sev === 2))
     .filter(r => !ok(r.volatility) || r.volatility <= prof.maxVol)
     .filter(r => !ok(r.offHigh) || r.offHigh >= prof.maxFall)
     .filter(r => !prof.minMcap || !ok(r.mcapCr) || r.mcapCr >= prof.minMcap)
     .sort((a, b) => b.score - a.score);
+  // Never recommend a stock whose numbers are missing or contradict each other
+  const eligible = candidates.filter(r => r.dq.usable);
+  const skipped = candidates.filter(r => !r.dq.usable).slice(0, 8);
   const per = {}, picks = [];
   for (const r of eligible) {
     if (picks.length >= prof.n) break;
@@ -114,7 +119,7 @@ function buildPlan(rows, prof, amount, mood) {
     r.conviction = r.score >= 72 && !r.flags.length ? "High" : "Medium";
   });
   const avoid = scored.filter(r => r.flags.some(f => f.sev === 2)).sort((a, b) => (b.mcapCr || 0) - (a.mcapCr || 0)).slice(0, 6);
-  return { picks, avoid, core, cash, coreAmt: amount * core, cashAmt: amount * cash, eligible: eligible.length };
+  return { picks, avoid, skipped, core, cash, coreAmt: amount * core, cashAmt: amount * cash, eligible: eligible.length };
 }
 
 export function mount(el) {
@@ -141,6 +146,9 @@ export function mount(el) {
     const today = new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Kolkata" });
     const sectors = new Set(picks.map(p => p.sector)).size;
     const gap = Math.round(42 / mood.parts);
+    const saved = savePlan({ risk: profK, riskName: prof.name, nifty: getQuote("^NSEI")?.price ?? niftyT?.px, picks: picks.map(r => ({ sym: r.sym, name: r.name, price: r.price, w: r.weight })) });
+    if (saved) toast("Today's plan saved to your Track record");
+    const checked = picks.filter(r => r.dq.level === "good").length;
 
     $("#note", el).innerHTML = `
       <section class="panel memo">
@@ -154,21 +162,23 @@ export function mount(el) {
             ${plan.core ? `<div><b>${rup(plan.coreAmt)}</b><span>in a Nifty 50 index ETF (<a class="sym" href="${href("DES", INDEX_ETF)}">NIFTYBEES</a>) as a safe core</span></div>` : ""}
             <div><b>${rup(plan.cashAmt)}</b><span>kept as cash to buy dips</span></div>
           </div>
+          <p class="sources">Prices: <b>${feed.source === "upstox" ? "Upstox, live" : "Yahoo Finance, up to 15 min delayed"}</b> · Company figures: <b>Yahoo Finance</b> · Data checked on ${checked} of ${picks.length} picks${plan.skipped.length ? ` · ${plan.skipped.length} skipped for bad data` : ""} · <a class="sym" href="${href("TRACK")}">See how past plans did ›</a></p>
           <p class="prose"><b>How to buy:</b> don't invest it all today. Split it into <b>${mood.parts} equal parts</b> and buy one part about every ${gap} days. Follow the "When to buy" note for each stock. Check this page once a month: if a stock leaves the list or falls below its review level, re-read its story before adding more.</p>
         </div>
       </section>
       ${picks.length ? `<section class="panel buylist"><header class="ph"><h2>Your buy list</h2></header><div class="pb tbl"><table class="t">
         <thead><tr><th class="l hide-sm">#</th><th class="l">Stock</th><th>Invest</th><th>Shares</th><th class="l">When to buy</th></tr></thead>
         <tbody>${picks.map((r, i) => `<tr><td class="l hide-sm">${i + 1}</td>
-          <td class="l"><a class="sym" href="${href("DES", r.sym)}">${esc(r.name)}</a><span class="sub">${esc(short(r.sym))} · ${esc(r.sector)}${r.conviction === "High" ? ` · <span class="up">high conviction</span>` : ""}</span></td>
+          <td class="l"><a class="sym" href="${href("DES", r.sym)}">${esc(r.name)}</a><span class="sub">${esc(short(r.sym))} · ${esc(r.sector)}${r.conviction === "High" ? ` · <span class="up">high conviction</span>` : ""}</span>${dataBadge(r.dq)}</td>
           <td><b>${rup(r.amount)}</b></td><td>${r.shares ? fmt.n(r.shares, 0) : "<1"}</td>
           <td class="l"><span class="tag ${r.entry.c}">${r.entry.tag}</span></td></tr>`).join("")}
           ${plan.core ? `<tr class="core"><td class="l hide-sm">+</td><td class="l"><a class="sym" href="${href("DES", INDEX_ETF)}">Nifty 50 index ETF</a><span class="sub">NIFTYBEES · safe core</span></td><td><b>${rup(plan.coreAmt)}</b></td><td></td><td class="l"><span class="tag up">Same schedule</span></td></tr>` : ""}
         </tbody></table></div></section>
         <details class="explain"><summary>Why each stock was picked, its main risk and when to re-check ▸</summary><div class="picks">${picks.map(pickCard).join("")}</div></details>`
         : `<div class="panel"><p class="pad">Nothing passes my checks right now (${plan.eligible} stocks scored high enough before diversification). In a market like this, the index ETF and cash are the plan.</p></div>`}
+      ${plan.skipped.length ? `<details class="explain"><summary>Skipped because their data looked wrong or incomplete (${plan.skipped.length}) ▸</summary>${panel("Left out for bad data", `<p class="pad muted">These scored well enough, but I won't recommend a stock when its numbers are missing or contradict each other. Check them yourself on the company's results.</p><table class="t"><tbody>${plan.skipped.map(r => `<tr><td class="l"><a class="sym" href="${href("DES", r.sym)}">${esc(short(r.sym))}</a> <span class="muted">${esc(r.name)}</span></td><td class="l v-mid">${esc(r.dq.detail)}</td></tr>`).join("")}</tbody></table>`, { cls: "avoid" })}</details>` : ""}
       ${plan.avoid.length ? `<details class="explain"><summary>Stocks to avoid for now (${plan.avoid.length}) ▸</summary>${panel("Avoid for now", `<table class="t"><tbody>${plan.avoid.map(r => `<tr><td class="l"><a class="sym" href="${href("DES", r.sym)}">${esc(short(r.sym))}</a> <span class="muted">${esc(r.name)}</span></td><td class="l dn">${esc(r.flags.filter(f => f.sev === 2).map(f => f.text).join(" · "))}</td></tr>`).join("")}</tbody></table>`, { cls: "avoid" })}</details>` : ""}
-      <p class="fine muted">These picks come from fixed rules applied to public data (Yahoo Finance), refreshed each time you open this page — not from a SEBI-registered adviser who knows your finances. Any stock can fall, and the data can be wrong or late, so read each company's story (click its name) before you buy. Only invest money you won't need for 3+ years.</p>`;
+      <p class="fine muted">These picks come from fixed rules applied to public data, refreshed each time you open this page — not from a SEBI-registered adviser who knows your finances. Any stock can fall, and the data can be wrong or late, so read each company's story (click its name) before you buy. Only invest money you won't need for 3+ years.</p>`;
     el.querySelectorAll("details.explain").forEach((d, i) => { if (openSet.has(i)) d.open = true; });
   }
 
