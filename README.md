@@ -90,6 +90,8 @@ What uses Upstox (`api/_upstox.js`):
 - **Charts**: Historical Candle Data V3, for daily, weekly and monthly charts and the screener's technicals.
 - **Ticker lookup**: Instrument Search maps `RELIANCE` → `NSE_EQ|INE002A01018`, cached for a day.
 
+- **Holdings sync**: the **Sync my Upstox holdings** button in `PORT` fills your portfolio from the Long Term Holdings API (`api/holdings.js`). Holdings are private, and anyone can open a deployed site, so this also needs an `APP_PASSWORD` environment variable. The first time you sync, the app asks for that password and remembers it in your browser. Without `APP_PASSWORD` the endpoint refuses every request.
+
 Yahoo is still used for:
 
 - Intraday charts
