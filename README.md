@@ -58,11 +58,20 @@ Practise with pretend money (₹10 lakh by default) at live prices. It's deliver
   - Indian delivery charges on every trade: ₹20 brokerage, 0.1% STT, exchange and SEBI fees, GST, 0.015% stamp duty, and a DP charge when you sell
   - each sale is matched against your oldest shares first
 - **While you're away**: open orders are checked against each day's high and low. An order fills at its price, or at the open if the stock gapped past it.
+- **Trailing stop-loss**: the stop rises with the price and sells if the price falls a set % from its highest point. You can use it on a sell, or as the protection on a buy. Open orders can be edited.
+- **Size by risk**: choose to risk 0.5%, 1% or 2% of your account. The share quantity is worked out from your stop-loss, and the order summary shows the reward/risk ratio and warns when a trade risks too much.
+- **Price chart in the order form**: the last 3 months, with your entry, stop-loss and target drawn as lines.
+- **Journal**:
+  - tag each trade with a reason and your mood (calm, FOMO, revenge…)
+  - add a lesson to any closed trade
+  - every trade with a stop-loss gets an R-multiple (profit ÷ amount risked)
+- **Holdings** show your open risk: how much you'd lose if every stop-loss hit, and which positions have no stop-loss.
 - **Test the Buy plan** in one click, using the latest saved plan.
 - **Analysis**:
   - your account vs the Nifty 50
   - win rate, average win vs loss, profit factor, average per trade, worst fall from peak, charges paid
-  - results by trade reason and by sector
+  - average R, plus a calendar of daily results for the last 12 weeks
+  - results by trade reason, sector and mood
   - plain-English insights such as "you sell winners early and hold losers"
 
 Code lives in `js/paper.js` (engine) and `js/views/paper.js` (page). Data is saved in this browser under its own key.
