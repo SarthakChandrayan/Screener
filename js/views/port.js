@@ -1,6 +1,6 @@
 // PORT — holdings, live P&L, sector allocation and a rough capital-gains tax estimate.
 
-import { $, esc, fmt, cls, toast, parseCSV, toNum, downloadCSV, uid, store } from "../util.js";
+import { $, esc, fmt, cls, toast, parseCSV, toNum, downloadCSV, uid } from "../util.js";
 import { getQuote, refreshQuotes } from "../api.js";
 import { sectorOf, STOCKS } from "../universes.js";
 import { portfolio, savePortfolio, yahooSym } from "../state.js";
@@ -25,10 +25,6 @@ export function mount(el, args) {
   el.innerHTML = `
     <div class="port-hero" id="pHero"></div>
     <div class="grid">
-      ${panel("Sync from Upstox", `<div class="row-form">
-          <button class="btn amber" id="syncUp" type="button">Sync my Upstox holdings</button>
-          <span class="muted small" id="syncState">Replaces the stocks below with what's in your Upstox demat account. Buy dates you've entered are kept.</span>
-        </div>`, { cls: "c12" })}
       ${panel("Add holding", `
         <form id="addForm" class="form-grid" autocomplete="off">
           <label>Symbol<input id="fSym" required placeholder="RELIANCE" style="text-transform:uppercase"></label>
@@ -186,31 +182,6 @@ export function mount(el, args) {
     savePortfolio(); render(); toast(`Imported ${n} holding${n === 1 ? "" : "s"}`);
     e.target.value = "";
     refreshQuotes(portfolio.holdings.map(yahooSym)).catch(() => {});
-  };
-
-  // Upstox sync: needs UPSTOX_TOKEN and APP_PASSWORD on the server; the password is remembered in this browser only
-  $("#syncUp", el).onclick = async () => {
-    const say = t => { $("#syncState", el).textContent = t; };
-    let pass = store.get("bahi-app-pass", "");
-    if (!pass) { pass = prompt("App password (the APP_PASSWORD you set in Vercel)") || ""; if (!pass) return; }
-    say("Fetching holdings from Upstox…");
-    try {
-      const r = await fetch("/api/holdings", { headers: { "X-App-Password": pass } });
-      const j = await r.json().catch(() => ({}));
-      if (r.status === 401 && /password/i.test(j.error || "")) store.set("bahi-app-pass", "");
-      if (!r.ok) throw new Error(j.error || "HTTP " + r.status);
-      store.set("bahi-app-pass", pass);
-      // keep buy dates and sectors the user already filled in for the same stock
-      const old = new Map(portfolio.holdings.map(h => [h.ex + ":" + h.sym, h]));
-      portfolio.holdings = j.holdings.map(h => {
-        const o = old.get(h.ex + ":" + h.sym);
-        const sec = o?.sector || sectorOf(h.sym + ".NS");
-        return { id: o?.id || uid(), sym: h.sym, ex: h.ex, qty: h.qty, avg: h.avg, ltp: h.ltp || h.avg, prev: h.prev, date: o?.date || "", sector: sec === "Other" ? "Unassigned" : sec, priceAt: Date.now() };
-      });
-      savePortfolio(); render();
-      say(`Synced ${j.holdings.length} holding${j.holdings.length === 1 ? "" : "s"} from Upstox · ${fmt.time(Date.now())} IST`);
-      refreshQuotes(portfolio.holdings.map(yahooSym)).catch(() => {});
-    } catch (e) { say(e.message); }
   };
 
   $("#exportBtn", el).onclick = () => downloadCSV("portfolio.csv", [

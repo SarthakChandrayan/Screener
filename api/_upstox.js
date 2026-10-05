@@ -123,19 +123,4 @@ async function candles(sym, range) {
   return rows.length ? rows : null;
 }
 
-// Your demat holdings (Long Term Holdings API). Personal data: never cached.
-async function holdings() {
-  const j = await call("/v2/portfolio/long-term-holdings");
-  return (j.data || []).map(h => ({
-    sym: String(h.trading_symbol || h.tradingsymbol || "").toUpperCase(),
-    name: h.company_name || null,
-    ex: h.exchange === "BSE" ? "BSE" : "NSE",
-    isin: h.isin || null,
-    qty: (Number(h.quantity) || 0) + (Number(h.t1_quantity) || 0),
-    avg: Number(h.average_price) || 0,
-    ltp: Number(h.last_price) || null,
-    prev: Number(h.close_price) || null,
-  })).filter(h => h.sym && h.qty > 0);
-}
-
-module.exports = { enabled, quotes, candles, instrumentKey, holdings };
+module.exports = { enabled, quotes, candles, instrumentKey };
