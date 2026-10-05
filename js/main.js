@@ -13,6 +13,7 @@ import * as eqs from "./views/eqs.js";
 import * as ideas from "./views/ideas.js";
 import * as picks from "./views/picks.js";
 import * as track from "./views/track.js";
+import * as paper from "./views/paper.js";
 import * as most from "./views/most.js";
 import * as heat from "./views/heat.js";
 import * as news from "./views/news.js";
@@ -22,11 +23,11 @@ import * as des from "./views/des.js";
 import * as help from "./views/help.js";
 
 const VIEWS = {
-  TOP: top.mount, WEI: wei.mount, W: watch.mount, PORT: port.mount, EQS: eqs.mount, IDEAS: ideas.mount, PICKS: picks.mount, TRACK: track.mount, MOST: most.mount,
+  TOP: top.mount, WEI: wei.mount, W: watch.mount, PORT: port.mount, EQS: eqs.mount, IDEAS: ideas.mount, PICKS: picks.mount, TRACK: track.mount, PAPER: paper.mount, MOST: most.mount,
   HEAT: heat.mount, N: news.mount, ALRT: alrt.mount, COMP: comp.mount, DES: des.mount, GP: des.mountFull, HELP: help.mount,
 };
 const ALIASES = {
-  HOME: "TOP", MKT: "WEI", WL: "W", WATCH: "W", PF: "PORT", PRT: "PORT", SCR: "EQS", SCREEN: "EQS", IDEA: "IDEAS", PICK: "PICKS", MANAGER: "PICKS", ADVISOR: "PICKS", BUY: "PICKS", PLAN: "PICKS", RECORD: "TRACK", HISTORY: "TRACK", PICKS: "IDEAS", SUGGEST: "IDEAS", LEARN: "HELP", GLOSSARY: "HELP", IMAP: "HEAT",
+  HOME: "TOP", MKT: "WEI", WL: "W", WATCH: "W", PF: "PORT", PRT: "PORT", SCR: "EQS", SCREEN: "EQS", IDEA: "IDEAS", PICK: "PICKS", MANAGER: "PICKS", ADVISOR: "PICKS", BUY: "PICKS", PLAN: "PICKS", RECORD: "TRACK", PT: "PAPER", TRADE: "PAPER", SIM: "PAPER", HISTORY: "TRACK", PICKS: "IDEAS", SUGGEST: "IDEAS", LEARN: "HELP", GLOSSARY: "HELP", IMAP: "HEAT",
   NEWS: "N", CN: "N", ALERT: "ALRT", ALERTS: "ALRT", G: "GP", CHART: "GP", COMPARE: "COMP", "?": "HELP", H: "HELP",
 };
 const SEC_FNS = new Set(SEC_FUNCTIONS.map(f => f[0]));
@@ -215,7 +216,7 @@ bus.addEventListener("quotes", () => {
 
 /* ---------- boot ---------- */
 // Simple view: a few plain tabs plus a "More" menu. Pro view: every function key, ticker tape and breadcrumb.
-const MAIN_TABS = [["PICKS", "Buy plan"], ["TRACK", "Track record"], ["IDEAS", "Stock ideas"], ["PORT", "My portfolio"], ["W", "Watchlist"], ["TOP", "Market today"]];
+const MAIN_TABS = [["PICKS", "Buy plan"], ["TRACK", "Track record"], ["PAPER", "Paper trading"], ["IDEAS", "Stock ideas"], ["PORT", "My portfolio"], ["W", "Watchlist"], ["TOP", "Market today"]];
 const MORE_TABS = [["EQS", "Screener"], ["MOST", "Top movers"], ["HEAT", "Sector heatmap"], ["N", "News"], ["COMP", "Compare stocks"], ["ALRT", "Price alerts"], ["WEI", "World markets"], ["HELP", "Help & glossary"]];
 let pro = store.get("bahi-pro-view", false);
 function buildNav() {
