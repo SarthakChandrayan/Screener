@@ -2,7 +2,7 @@
 // (quote + fundamentals + technicals), and a scan that fills in whatever is missing.
 
 import { fmt } from "./util.js";
-import { getQuote, refreshQuotes, fetchFundamentals, cachedFundamentals, fetchChart, pool } from "./api.js";
+import { getQuote, refreshQuotes, fetchFundamentals, cachedFundamentals, fundamentalsAt, fetchChart, pool } from "./api.js";
 import { nameOf, STOCKS } from "./universes.js";
 import { techSummary } from "./tech.js";
 
@@ -21,6 +21,8 @@ export function stockRow(s) {
     offHigh: w52h && price ? (price / w52h - 1) * 100 : null,
     r1w: t.r1w, r1m: t.r1m, r3m: t.r3m, r6m: t.r6m, r1y: t.r1y, ytd: t.ytd,
     rsi: t.rsi, vsSma50: t.vsSma50, vsSma200: t.vsSma200, volRatio: t.volRatio, volatility: t.volatility,
+    // for data checks (js/dataqual.js)
+    eps: f.eps, histPx: t.px ?? null, fundAt: fundamentalsAt(s), hasQuote: q.price != null,
   };
 }
 

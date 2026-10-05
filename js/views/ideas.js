@@ -5,6 +5,7 @@ import { $, esc, fmt, cls, short, store, toast } from "../util.js";
 import { universe, addWatch, inWatch } from "../state.js";
 import { scanSymbols, stockRow } from "../scan.js";
 import { PILLARS, STYLES, scoreRow, verdict, scoreBar } from "../score.js";
+import { dataCheck, dataBadge } from "../dataqual.js";
 import { panel, universeSelect, sortTable, nextSort, href } from "./common.js";
 
 const SHOWN = PILLARS.filter(([k]) => k !== "income");
@@ -65,7 +66,7 @@ export function mount(el) {
         <div class="who"><a class="sym" href="${href("DES", r.sym)}">${esc(short(r.sym))}</a><span class="sub">${esc(r.name)} · ${esc(r.sector)}</span></div>
         <div class="big ${v.c}" title="${esc(v.label)}">${r.score}<small>/100</small></div>
       </header>
-      <div class="verdict ${v.c}">${esc(v.label)} <span class="muted">· ${fmt.px(r.price)} <span class="${cls(r.chgPct)}">${fmt.pct(r.chgPct)}</span></span></div>
+      <div class="verdict ${v.c}">${esc(v.label)} <span class="muted">· ${fmt.px(r.price)} <span class="${cls(r.chgPct)}">${fmt.pct(r.chgPct)}</span></span> ${dataBadge(dataCheck(r))}</div>
       <dl class="pbars">${SHOWN.map(([k, l]) => `<dt>${l}</dt><dd>${scoreBar(r.pillars[k], 90)}<span>${r.pillars[k] ?? "—"}</span></dd>`).join("")}</dl>
       ${r.reasons.length ? `<p class="why-h up">Why it's here</p><ul class="why">${r.reasons.slice(0, 3).map(t => `<li>${esc(t)}</li>`).join("")}</ul>` : ""}
       ${r.flags.length ? `<p class="why-h dn">Watch out</p><ul class="why flags">${r.flags.slice(0, 3).map(f => `<li class="${f.sev === 2 ? "sev" : ""}">${esc(f.text)}</li>`).join("")}</ul>` : `<p class="why-h muted">No red flags in the numbers</p>`}
