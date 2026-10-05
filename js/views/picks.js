@@ -134,6 +134,7 @@ export function mount(el) {
 
   function render() {
     if (!rows) return;
+    const openSet = new Set([...el.querySelectorAll("details.explain")].map((d, i) => (d.open ? i : -1)));
     const prof = PROFILES[profK], mood = marketMood(niftyT);
     plan = buildPlan(rows, prof, amount, mood);
     const { picks } = plan;
@@ -156,9 +157,19 @@ export function mount(el) {
           <p class="prose"><b>How to buy:</b> don't invest it all today. Split it into <b>${mood.parts} equal parts</b> and buy one part about every ${gap} days. Follow the "When to buy" note for each stock. Check this page once a month: if a stock leaves the list or falls below its review level, re-read its story before adding more.</p>
         </div>
       </section>
-      ${picks.length ? `<div class="picks">${picks.map(pickCard).join("")}</div>` : `<div class="panel"><p class="pad">Nothing passes my checks right now (${plan.eligible} stocks scored high enough before diversification). In a market like this, the index ETF and cash are the plan.</p></div>`}
-      ${plan.avoid.length ? panel("Avoid for now", `<table class="t"><tbody>${plan.avoid.map(r => `<tr><td class="l"><a class="sym" href="${href("DES", r.sym)}">${esc(short(r.sym))}</a> <span class="muted">${esc(r.name)}</span></td><td class="l dn">${esc(r.flags.filter(f => f.sev === 2).map(f => f.text).join(" · "))}</td></tr>`).join("")}</tbody></table>`, { cls: "avoid" }) : ""}
+      ${picks.length ? `<section class="panel buylist"><header class="ph"><h2>Your buy list</h2></header><div class="pb tbl"><table class="t">
+        <thead><tr><th class="l hide-sm">#</th><th class="l">Stock</th><th>Invest</th><th>Shares</th><th class="l">When to buy</th></tr></thead>
+        <tbody>${picks.map((r, i) => `<tr><td class="l hide-sm">${i + 1}</td>
+          <td class="l"><a class="sym" href="${href("DES", r.sym)}">${esc(r.name)}</a><span class="sub">${esc(short(r.sym))} · ${esc(r.sector)}${r.conviction === "High" ? ` · <span class="up">high conviction</span>` : ""}</span></td>
+          <td><b>${rup(r.amount)}</b></td><td>${r.shares ? fmt.n(r.shares, 0) : "<1"}</td>
+          <td class="l"><span class="tag ${r.entry.c}">${r.entry.tag}</span></td></tr>`).join("")}
+          ${plan.core ? `<tr class="core"><td class="l hide-sm">+</td><td class="l"><a class="sym" href="${href("DES", INDEX_ETF)}">Nifty 50 index ETF</a><span class="sub">NIFTYBEES · safe core</span></td><td><b>${rup(plan.coreAmt)}</b></td><td></td><td class="l"><span class="tag up">Same schedule</span></td></tr>` : ""}
+        </tbody></table></div></section>
+        <details class="explain"><summary>Why each stock was picked, its main risk and when to re-check ▸</summary><div class="picks">${picks.map(pickCard).join("")}</div></details>`
+        : `<div class="panel"><p class="pad">Nothing passes my checks right now (${plan.eligible} stocks scored high enough before diversification). In a market like this, the index ETF and cash are the plan.</p></div>`}
+      ${plan.avoid.length ? `<details class="explain"><summary>Stocks to avoid for now (${plan.avoid.length}) ▸</summary>${panel("Avoid for now", `<table class="t"><tbody>${plan.avoid.map(r => `<tr><td class="l"><a class="sym" href="${href("DES", r.sym)}">${esc(short(r.sym))}</a> <span class="muted">${esc(r.name)}</span></td><td class="l dn">${esc(r.flags.filter(f => f.sev === 2).map(f => f.text).join(" · "))}</td></tr>`).join("")}</tbody></table>`, { cls: "avoid" })}</details>` : ""}
       <p class="fine muted">These picks come from fixed rules applied to public data (Yahoo Finance), refreshed each time you open this page — not from a SEBI-registered adviser who knows your finances. Any stock can fall, and the data can be wrong or late, so read each company's story (click its name) before you buy. Only invest money you won't need for 3+ years.</p>`;
+    el.querySelectorAll("details.explain").forEach((d, i) => { if (openSet.has(i)) d.open = true; });
   }
 
   function pickCard(r, i) {

@@ -4,6 +4,8 @@ A keyboard-driven terminal for NSE/BSE: live market monitor, security pages with
 
 ## Using it
 
+The app opens in a **simple view**: plain tabs for Buy plan, Stock ideas, My portfolio, Watchlist and Market today, with everything else under **More**. Click **Pro view** (top right) for the full terminal with the ticker tape and all function keys.
+
 Type into the command line at the top (or just start typing anywhere) and press Enter.
 
 | Command | What it does |

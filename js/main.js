@@ -1,6 +1,6 @@
 // Terminal shell: command line with suggestions, routing, ticker tape, clock and the quote poller.
 
-import { $, $$, esc, fmt, cls, normSym, short, debounce, marketStatus, istNow } from "./util.js";
+import { $, $$, esc, fmt, cls, normSym, short, debounce, marketStatus, istNow, store } from "./util.js";
 import { bus, feed, getQuote, refreshQuotes, searchSymbols } from "./api.js";
 import { TAPE, STOCKS, MARKETS, nameOf } from "./universes.js";
 import { go, parseHash } from "./nav.js";
@@ -46,6 +46,7 @@ function route() {
   catch (e) { console.error(e); host.innerHTML = `<p class="pad dn">Something went wrong: ${esc(e.message)}</p>`; }
   cur = { fn, args, inst };
   $$("#fkeys a").forEach(a => a.classList.toggle("on", a.dataset.fn === fn));
+  $("#fkeys .more")?.classList.toggle("on", !!$("#fkeys .more a.on"));
   $("#crumb").textContent = [fn, ...args.map(a => short(a))].join(" ");
   document.title = `${inst.title || fn} · Bahi Terminal`;
   poll();
@@ -212,7 +213,23 @@ bus.addEventListener("quotes", () => {
 });
 
 /* ---------- boot ---------- */
-$("#fkeys").innerHTML = FUNCTIONS.map(([k, d]) => `<a href="#/${k}" data-fn="${k}" title="${esc(d)}">${k}</a>`).join("");
+// Simple view: a few plain tabs plus a "More" menu. Pro view: every function key, ticker tape and breadcrumb.
+const MAIN_TABS = [["PICKS", "Buy plan"], ["IDEAS", "Stock ideas"], ["PORT", "My portfolio"], ["W", "Watchlist"], ["TOP", "Market today"]];
+const MORE_TABS = [["EQS", "Screener"], ["MOST", "Top movers"], ["HEAT", "Sector heatmap"], ["N", "News"], ["COMP", "Compare stocks"], ["ALRT", "Price alerts"], ["WEI", "World markets"], ["HELP", "Help & glossary"]];
+let pro = store.get("bahi-pro-view", false);
+function buildNav() {
+  document.body.classList.toggle("simple", !pro);
+  $("#fkeys").innerHTML = pro
+    ? FUNCTIONS.map(([k, d]) => `<a href="#/${k}" data-fn="${k}" title="${esc(d)}">${k}</a>`).join("")
+    : MAIN_TABS.map(([k, l]) => `<a href="#/${k}" data-fn="${k}">${l}</a>`).join("") +
+      `<details class="more"><summary>More ▾</summary><div>${MORE_TABS.map(([k, l]) => `<a href="#/${k}" data-fn="${k}">${l}</a>`).join("")}</div></details>`;
+  $("#viewToggle").textContent = pro ? "Simple view" : "Pro view";
+  $$("#fkeys a").forEach(a => a.classList.toggle("on", a.dataset.fn === cur?.fn));
+}
+$("#viewToggle").onclick = () => { pro = !pro; store.set("bahi-pro-view", pro); buildNav(); };
+$("#fkeys").addEventListener("click", e => { if (e.target.closest(".more a")) e.currentTarget.querySelector(".more").open = false; });
+document.addEventListener("click", e => { const m = $("#fkeys .more"); if (m?.open && !m.contains(e.target)) m.open = false; });
+buildNav();
 buildTape();
 tick();
 route();
