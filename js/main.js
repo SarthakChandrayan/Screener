@@ -49,7 +49,7 @@ function route() {
   $$("#fkeys a").forEach(a => a.classList.toggle("on", a.dataset.fn === fn));
   $("#fkeys .more")?.classList.toggle("on", !!$("#fkeys .more a.on"));
   $("#crumb").textContent = [fn, ...args.map(a => short(a))].join(" ");
-  document.title = `${inst.title || fn} · Bahi Terminal`;
+  document.title = `${inst.title || fn} · Screener`;
   poll();
 }
 window.addEventListener("hashchange", route);

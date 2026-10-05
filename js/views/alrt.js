@@ -28,7 +28,7 @@ export function checkAlerts() {
       const msg = `${short(a.sym)} ${a.op === ">=" ? "rose to" : "fell to"} ${fmt.px(q.price)} (alert ${a.op === ">=" ? "≥" : "≤"} ${fmt.px(a.price)})`;
       toast("⏰ " + msg);
       beep();
-      try { if (Notification.permission === "granted") new Notification("Bahi alert", { body: msg + (a.note ? " — " + a.note : "") }); } catch { /* unsupported */ }
+      try { if (Notification.permission === "granted") new Notification("Screener alert", { body: msg + (a.note ? " — " + a.note : "") }); } catch { /* unsupported */ }
     }
   }
   if (fired) saveAlerts();
