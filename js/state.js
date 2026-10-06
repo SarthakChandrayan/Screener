@@ -1,7 +1,7 @@
 // Persistent user data: watchlist, alerts, portfolio and the custom screener universe.
 
 import { store, uid } from "./util.js";
-import { NIFTY50, NEXT50 } from "./universes.js";
+import { NIFTY50, NEXT50, MIDCAP } from "./universes.js";
 
 /* ---------- watchlist ---------- */
 const WKEY = "bahi-watch-v1";
@@ -42,6 +42,8 @@ export const UNIVERSES = [
   ["N50", "Nifty 50"],
   ["NN50", "Nifty Next 50"],
   ["N100", "Nifty 100"],
+  ["MID", "Midcaps (from Nifty Midcap 150)"],
+  ["ALL", "Nifty 100 + Midcaps"],
   ["WATCH", "My watchlist"],
   ["PORT", "My portfolio"],
   ["CUSTOM", "Custom list"],
@@ -50,6 +52,8 @@ export function universe(id) {
   switch (id) {
     case "NN50": return NEXT50.map(s => s.sym);
     case "N100": return [...NIFTY50, ...NEXT50].map(s => s.sym);
+    case "MID": return MIDCAP.map(s => s.sym);
+    case "ALL": return [...NIFTY50, ...NEXT50, ...MIDCAP].map(s => s.sym);
     case "WATCH": return watch.filter(s => !s.startsWith("^") && !s.includes("="));
     case "PORT": return [...new Set(portfolio.holdings.map(yahooSym))];
     case "CUSTOM": return getCustom();

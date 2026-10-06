@@ -113,7 +113,139 @@ VEDL|Vedanta|Metals & Mining
 ZYDUSLIFE|Zydus Lifesciences|Healthcare
 `);
 
-export const STOCKS = new Map([...NIFTY50, ...NEXT50].map(s => [s.sym, s]));
+// Midcaps, built from the Nifty Midcap 150 (compiled by hand, so it can drift from the official list:
+// compare with NSE's "ind_niftymidcap150list.csv" when the index is rebalanced in March and September).
+// Stocks that are renamed or delisted simply get no data and are skipped by the data checks.
+export const MIDCAP = parse(`
+AUBANK|AU Small Finance Bank|Banks
+BANDHANBNK|Bandhan Bank|Banks
+FEDERALBNK|Federal Bank|Banks
+IDFCFIRSTB|IDFC First Bank|Banks
+INDIANB|Indian Bank|Banks
+UNIONBANK|Union Bank of India|Banks
+BANKINDIA|Bank of India|Banks
+YESBANK|Yes Bank|Banks
+MAHABANK|Bank of Maharashtra|Banks
+ABCAPITAL|Aditya Birla Capital|Financial Services
+LICHSGFIN|LIC Housing Finance|Financial Services
+MUTHOOTFIN|Muthoot Finance|Financial Services
+M&MFIN|Mahindra & Mahindra Financial|Financial Services
+SBICARD|SBI Cards|Financial Services
+POONAWALLA|Poonawalla Fincorp|Financial Services
+LTF|L&T Finance|Financial Services
+SUNDARMFIN|Sundaram Finance|Financial Services
+HDFCAMC|HDFC Asset Management|Financial Services
+NAM-INDIA|Nippon Life India AMC|Financial Services
+MFSL|Max Financial Services|Financial Services
+STARHEALTH|Star Health Insurance|Financial Services
+GICRE|General Insurance Corp|Financial Services
+BSE|BSE|Financial Services
+MCX|Multi Commodity Exchange|Financial Services
+PAYTM|One 97 Communications (Paytm)|Financial Services
+POLICYBZR|PB Fintech (Policybazaar)|Financial Services
+HUDCO|HUDCO|Financial Services
+IREDA|IREDA|Financial Services
+BAJAJHFL|Bajaj Housing Finance|Financial Services
+360ONE|360 ONE WAM|Financial Services
+MOTILALOFS|Motilal Oswal Financial|Financial Services
+PERSISTENT|Persistent Systems|IT
+COFORGE|Coforge|IT
+MPHASIS|Mphasis|IT
+OFSS|Oracle Financial Services|IT
+KPITTECH|KPIT Technologies|IT
+TATAELXSI|Tata Elxsi|IT
+TATATECH|Tata Technologies|IT
+LTTS|L&T Technology Services|IT
+LUPIN|Lupin|Healthcare
+AUROPHARMA|Aurobindo Pharma|Healthcare
+ALKEM|Alkem Laboratories|Healthcare
+MANKIND|Mankind Pharma|Healthcare
+IPCALAB|Ipca Laboratories|Healthcare
+GLENMARK|Glenmark Pharma|Healthcare
+BIOCON|Biocon|Healthcare
+LAURUSLABS|Laurus Labs|Healthcare
+ABBOTINDIA|Abbott India|Healthcare
+FORTIS|Fortis Healthcare|Healthcare
+SYNGENE|Syngene International|Healthcare
+AJANTPHARM|Ajanta Pharma|Healthcare
+ASHOKLEY|Ashok Leyland|Auto
+BHARATFORG|Bharat Forge|Auto
+MRF|MRF|Auto
+BALKRISIND|Balkrishna Industries|Auto
+APOLLOTYRE|Apollo Tyres|Auto
+EXIDEIND|Exide Industries|Auto
+SONACOMS|Sona BLW Precision|Auto
+TIINDIA|Tube Investments|Auto
+UNOMINDA|Uno Minda|Auto
+ESCORTS|Escorts Kubota|Auto
+SCHAEFFLER|Schaeffler India|Auto
+BHEL|Bharat Heavy Electricals|Capital Goods
+CUMMINSIND|Cummins India|Capital Goods
+POLYCAB|Polycab India|Capital Goods
+KEI|KEI Industries|Capital Goods
+SUPREMEIND|Supreme Industries|Capital Goods
+ASTRAL|Astral|Capital Goods
+THERMAX|Thermax|Capital Goods
+AIAENG|AIA Engineering|Capital Goods
+BDL|Bharat Dynamics|Capital Goods
+MAZDOCK|Mazagon Dock Shipbuilders|Capital Goods
+COCHINSHIP|Cochin Shipyard|Capital Goods
+SUZLON|Suzlon Energy|Capital Goods
+WAAREEENER|Waaree Energies|Capital Goods
+HONAUT|Honeywell Automation|Capital Goods
+KAYNES|Kaynes Technology|Capital Goods
+SOLARINDS|Solar Industries|Capital Goods
+DIXON|Dixon Technologies|Consumer
+APLAPOLLO|APL Apollo Tubes|Metals & Mining
+RVNL|Rail Vikas Nigam|Infrastructure
+GMRAIRPORT|GMR Airports|Infrastructure
+JSWINFRA|JSW Infrastructure|Infrastructure
+IRCTC|IRCTC|Services
+CONCOR|Container Corp of India|Services
+DELHIVERY|Delhivery|Services
+PAGEIND|Page Industries|Consumer
+VOLTAS|Voltas|Consumer
+BLUESTARCO|Blue Star|Consumer
+KALYANKJIL|Kalyan Jewellers|Consumer
+JUBLFOOD|Jubilant FoodWorks|Consumer Services
+NYKAA|FSN E-Commerce (Nykaa)|Consumer Services
+PATANJALI|Patanjali Foods|FMCG
+COLPAL|Colgate-Palmolive India|FMCG
+MARICO|Marico|FMCG
+UBL|United Breweries|FMCG
+HINDPETRO|Hindustan Petroleum|Energy
+OIL|Oil India|Energy
+PETRONET|Petronet LNG|Energy
+IGL|Indraprastha Gas|Energy
+ATGL|Adani Total Gas|Energy
+NHPC|NHPC|Power
+SJVN|SJVN|Power
+TORNTPOWER|Torrent Power|Power
+NTPCGREEN|NTPC Green Energy|Power
+NMDC|NMDC|Metals & Mining
+SAIL|Steel Authority of India|Metals & Mining
+NATIONALUM|National Aluminium|Metals & Mining
+JSL|Jindal Stainless|Metals & Mining
+ACC|ACC|Cement & Materials
+DALBHARAT|Dalmia Bharat|Cement & Materials
+JKCEMENT|JK Cement|Cement & Materials
+SRF|SRF|Chemicals
+PIIND|PI Industries|Chemicals
+UPL|UPL|Chemicals
+COROMANDEL|Coromandel International|Chemicals
+DEEPAKNTR|Deepak Nitrite|Chemicals
+BERGEPAINT|Berger Paints|Chemicals
+GODREJPROP|Godrej Properties|Realty
+OBEROIRLTY|Oberoi Realty|Realty
+PRESTIGE|Prestige Estates|Realty
+PHOENIXLTD|Phoenix Mills|Realty
+IDEA|Vodafone Idea|Telecom
+INDUSTOWER|Indus Towers|Telecom
+TATACOMM|Tata Communications|Telecom
+BHARTIHEXA|Bharti Hexacom|Telecom
+`);
+
+export const STOCKS = new Map([...NIFTY50, ...NEXT50, ...MIDCAP].map(s => [s.sym, s]));
 
 export const MARKETS = [
   { group: "India", items: [

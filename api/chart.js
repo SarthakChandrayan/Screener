@@ -36,32 +36,39 @@ async function fromUpstox(sym, range) {
   } catch { return null; } // fall back to Yahoo
 }
 
+// Cleaned OHLCV series for one symbol (shared with /api/scan)
+async function series(sym, range, lite) {
+  const interval = INTERVAL[range];
+  const intraday = interval.endsWith("m");
+  return cached(`c:${sym}:${range}:${lite}`, intraday ? 30e3 : 600e3, async () => {
+    const src = (await fromUpstox(sym, range)) || (await fromYahoo(sym, range));
+    if (!src) return null;
+    const out = { t: [], o: [], h: [], l: [], c: [], v: [] };
+    for (const row of src.rows) {
+      // charts need strictly increasing times; Yahoo sometimes repeats the live bar
+      const n = out.t.length;
+      if (n && row[0] <= out.t[n - 1]) ["t", "o", "h", "l", "c", "v"].forEach(k => out[k].pop());
+      ["t", "o", "h", "l", "c", "v"].forEach((k, j) => out[k].push(j === 0 || j === 5 ? row[j] : round(row[j], 4)));
+    }
+    const body = { sym, range, interval, intraday, source: src.src, name: src.name, currency: src.currency, prevClose: src.prevClose, t: out.t, c: out.c, v: out.v };
+    if (!lite) Object.assign(body, { o: out.o, h: out.h, l: out.l });
+    return body;
+  });
+}
+
 module.exports = async (req, res) => {
   const sym = String(req.query.s || "").trim().toUpperCase();
   const range = String(req.query.range || "6mo").toLowerCase();
   const lite = req.query.lite === "1";
   if (!SYM.test(sym)) return send(res, 400, { error: "Pass a symbol like ?s=RELIANCE.NS" });
   if (!INTERVAL[range]) return send(res, 400, { error: "range must be one of " + Object.keys(INTERVAL).join(", ") });
-  const interval = INTERVAL[range];
-  const intraday = interval.endsWith("m");
+  const intraday = INTERVAL[range].endsWith("m");
   try {
-    const data = await cached(`c:${sym}:${range}:${lite}`, intraday ? 30e3 : 600e3, async () => {
-      const src = (await fromUpstox(sym, range)) || (await fromYahoo(sym, range));
-      if (!src) return null;
-      const out = { t: [], o: [], h: [], l: [], c: [], v: [] };
-      for (const row of src.rows) {
-        // charts need strictly increasing times; Yahoo sometimes repeats the live bar
-        const n = out.t.length;
-        if (n && row[0] <= out.t[n - 1]) ["t", "o", "h", "l", "c", "v"].forEach(k => out[k].pop());
-        ["t", "o", "h", "l", "c", "v"].forEach((k, j) => out[k].push(j === 0 || j === 5 ? row[j] : round(row[j], 4)));
-      }
-      const body = { sym, range, interval, intraday, source: src.src, name: src.name, currency: src.currency, prevClose: src.prevClose, t: out.t, c: out.c, v: out.v };
-      if (!lite) Object.assign(body, { o: out.o, h: out.h, l: out.l });
-      return body;
-    });
+    const data = await series(sym, range, lite);
     if (!data) return send(res, 404, { error: "No data for " + sym });
     send(res, 200, data, intraday ? 30 : 1800);
   } catch (e) {
     send(res, e.status === 404 ? 404 : 502, { error: e.status === 404 ? "No data for " + sym : e.message });
   }
 };
+module.exports.series = series;

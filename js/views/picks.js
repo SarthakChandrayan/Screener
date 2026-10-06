@@ -8,7 +8,8 @@ import { fetchChart, getQuote, feed } from "../api.js";
 import { dataCheck, dataBadge } from "../dataqual.js";
 import { savePlan } from "../track.js";
 import { techSummary } from "../tech.js";
-import { scanSymbols, stockRow, TECH } from "../scan.js";
+import { scanSymbols, stockRow, TECH, coverage } from "../scan.js";
+import { istDate } from "../util.js";
 import { scoreRow, verdict } from "../score.js";
 import { panel, href } from "./common.js";
 
@@ -16,7 +17,7 @@ const PROFILES = {
   conservative: {
     name: "Safe", desc: "Steady big companies, smaller swings",
     w: { quality: 35, value: 20, growth: 10, momentum: 5, safety: 20, income: 10 },
-    n: 10, maxW: 0.14, core: 0.3, minScore: 55, maxVol: 32, minMcap: 50000, maxFall: -30,
+    n: 10, maxW: 0.14, core: 0.3, minScore: 55, maxVol: 32, minMcap: 50000, maxFall: -30, largeOnly: true,
   },
   balanced: {
     name: "Balanced", desc: "Quality and growth at sensible prices",
@@ -30,6 +31,9 @@ const PROFILES = {
   },
 };
 const MAX_PER_SECTOR = 2;
+// Picks come from the Nifty 100 plus midcaps; the Safe level only uses the Nifty 100
+const UNI = "ALL";
+const LARGE = new Set(universe("N100"));
 const INDEX_ETF = "NIFTYBEES.NS";
 
 const SECTOR_RISK = [
@@ -84,6 +88,7 @@ function buildPlan(rows, prof, amount, mood) {
     .filter(r => !r.flags.some(f => f.sev === 2))
     .filter(r => !ok(r.volatility) || r.volatility <= prof.maxVol)
     .filter(r => !ok(r.offHigh) || r.offHigh >= prof.maxFall)
+    .filter(r => !prof.largeOnly || LARGE.has(r.sym))
     .filter(r => !prof.minMcap || !ok(r.mcapCr) || r.mcapCr >= prof.minMcap)
     .sort((a, b) => b.score - a.score);
   // Never recommend a stock whose numbers are missing or contradict each other
@@ -125,7 +130,7 @@ function buildPlan(rows, prof, amount, mood) {
 export function mount(el) {
   let profK = store.get("bahi-picks-risk", "balanced");
   let amount = store.get("bahi-picks-amt", 100000);
-  let niftyT = null, rows = null, plan = null;
+  let niftyT = null, rows = null, plan = null, scanned = false; // scanned: today's scan finished, safe to save the plan
 
   el.innerHTML = `<div class="grid">
     ${panel("Your plan", `<div class="row-form">
@@ -134,7 +139,7 @@ export function mount(el) {
         <button class="btn amber" id="refresh">Refresh picks</button>
         <span id="state" class="muted"></span>
       </div>`, { cls: "c12" })}
-    <div class="c12" id="note"><div class="panel"><p class="pad muted">Reading the market and scoring the Nifty 100… the first time takes about a minute.</p></div></div>
+    <div class="c12" id="note"><div class="panel"><p class="pad muted">Reading the market and scoring the Nifty 100 and midcaps… this takes a few seconds.</p></div></div>
   </div>`;
 
   function render() {
@@ -146,7 +151,7 @@ export function mount(el) {
     const today = new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Kolkata" });
     const sectors = new Set(picks.map(p => p.sector)).size;
     const gap = Math.round(42 / mood.parts);
-    const saved = savePlan({ risk: profK, riskName: prof.name, nifty: getQuote("^NSEI")?.price ?? niftyT?.px, picks: picks.map(r => ({ sym: r.sym, name: r.name, price: r.price, w: r.weight })) });
+    const saved = scanned && savePlan({ risk: profK, riskName: prof.name, nifty: getQuote("^NSEI")?.price ?? niftyT?.px, picks: picks.map(r => ({ sym: r.sym, name: r.name, price: r.price, w: r.weight })) });
     if (saved) toast("Today's plan saved to your Track record");
     const checked = picks.filter(r => r.dq.level === "good").length;
 
@@ -214,11 +219,17 @@ export function mount(el) {
   async function load(fresh) {
     const my = ++seq, alive = () => my === seq;
     const say = t => { if (alive()) $("#state", el).textContent = t; };
-    const syms = universe("N100");
-    const nifty = fetchChart("^NSEI", "1y", true).then(d => { niftyT = techSummary(d); }).catch(() => {});
+    const syms = universe(UNI);
+    // Show the plan straight away from data saved earlier today, then refresh in the background
+    const savedNifty = store.get("screener-nifty-tech", null);
+    if (!niftyT && savedNifty?.day === istDate()) niftyT = savedNifty.t;
+    if (!fresh && !rows && coverage(syms) >= 0.8) { rows = syms.map(stockRow); render(); say("Showing today's saved data · refreshing prices…"); }
+    const nifty = fetchChart("^NSEI", "1y", true).then(d => { niftyT = techSummary(d); store.set("screener-nifty-tech", { day: istDate(), t: niftyT }); }).catch(() => {});
     const res = await scanSymbols(syms, { say, alive, fresh, partial: () => {} });
     await nifty;
     if (!alive() || !res) return;
+    scanned = true;
+    say(res.length ? `Updated ${fmt.time(Date.now())} IST` : "");
     rows = syms.map(stockRow);
     render();
   }
@@ -251,7 +262,7 @@ export function mount(el) {
   return {
     title: "Manager's picks",
     syms: () => (rows ? plan?.picks.map(r => r.sym) || [] : []),
-    onQuotes: () => { if (rows) { rows = universe("N100").map(stockRow); render(); } },
+    onQuotes: () => { if (rows) { rows = universe(UNI).map(stockRow); render(); } },
     unmount: () => { seq++; },
   };
 }
