@@ -86,6 +86,7 @@ function derive(Y) {
     dilution: first.OrdinarySharesNumber > 0 && last.OrdinarySharesNumber > 0 ? round((last.OrdinarySharesNumber / first.OrdinarySharesNumber - 1) * 100, 1) : null,
     deChange: de(first) != null && de(last) != null ? round(de(last) - de(first), 2) : null,
     eqYrs: eq.length || null,
+    sharesOut: Number.isFinite(last.OrdinarySharesNumber) ? last.OrdinarySharesNumber : null,
     ...piotroski(Y),
     altmanZ: altman(last),
   };
@@ -111,7 +112,12 @@ async function fetchOne(sym) {
       website: ap.website || null,
       employees: ap.fullTimeEmployees || null,
       city: ap.city || null,
-      mcap: num(p.marketCap) ?? num(sd.marketCap),
+      // Yahoo sometimes omits market cap (e.g. TCS); fall back to shares outstanding × price
+      mcap: num(p.marketCap) ?? num(sd.marketCap) ?? (() => {
+        const sh = num(ks.sharesOutstanding) ?? hist.sharesOut, px = num(fd.currentPrice) ?? num(p.regularMarketPrice);
+        return sh && px ? Math.round(sh * px) : null;
+      })(),
+      sharesOut: num(ks.sharesOutstanding) ?? hist.sharesOut ?? null,
       pe: round(num(sd.trailingPE)),
       fpe: round(num(sd.forwardPE) ?? num(ks.forwardPE)),
       pb: round(num(ks.priceToBook)),
