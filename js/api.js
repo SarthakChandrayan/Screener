@@ -79,6 +79,10 @@ export function cachedFundamentals(sym) {
 }
 // When this browser last fetched a stock's fundamentals (ms), or null
 export const fundamentalsAt = sym => (cachedFundamentals(sym) ? fcache[sym].at : null);
+// Store fundamentals that arrived some other way (the /api/scan batches); call saveFundamentals() after
+export const primeFundamentals = (sym, d) => { if (d) fcache[sym] = { at: Date.now(), d }; };
+export const saveFundamentals = () => store.set(FKEY, fcache);
+export const fetchScanBatch = syms => j("/api/scan?s=" + encodeURIComponent(syms.join(",")));
 export async function fetchFundamentals(syms, onProgress) {
   const need = syms.filter(s => !cachedFundamentals(s));
   let done = syms.length - need.length, errors = 0, lastErr = null;
@@ -100,5 +104,25 @@ export async function fetchFundamentals(syms, onProgress) {
   const out = {};
   syms.forEach(s => { const d = cachedFundamentals(s); if (d) out[s] = d; });
   if (errors && !Object.keys(out).length) throw lastErr;
+  return out;
+}
+
+// Splits/bonus issues and dividends per symbol ({splits:[{t,ratio}], divs:[{t,amt}]}, t in seconds).
+// Cached in the browser for 12 hours; failures just mean no adjustment this time.
+const AKEY = "screener-actions-v1";
+let acache = store.get(AKEY, {});
+export async function fetchActions(syms) {
+  const now = Date.now(), need = [...new Set(syms)].filter(s => /\.(NS|BO)$/.test(s) && !(acache[s] && now - acache[s].at < 12 * 3600e3));
+  const chunks = [];
+  for (let i = 0; i < need.length; i += 20) chunks.push(need.slice(i, i + 20));
+  await pool(chunks, 3, async c => {
+    try {
+      const r = await j("/api/actions?s=" + encodeURIComponent(c.join(",")));
+      for (const [k, v] of Object.entries(r.data || {})) acache[k] = { at: now, d: v };
+    } catch { /* try again next time */ }
+  });
+  store.set(AKEY, acache);
+  const out = {};
+  syms.forEach(s => { if (acache[s]) out[s] = acache[s].d; });
   return out;
 }

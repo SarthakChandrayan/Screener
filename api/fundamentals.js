@@ -73,3 +73,4 @@ module.exports = async (req, res) => {
   if (!Object.keys(data).length && firstErr) return send(res, 502, { error: "Fundamentals unavailable: " + firstErr.message });
   send(res, 200, { data }, 21600);
 };
+module.exports.fetchOne = fetchOne;

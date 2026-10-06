@@ -177,6 +177,8 @@ export function checkLive(getQuote, marketOpen) {
   for (const o of A.orders.filter(x => x.status === "open")) {
     const q = getQuote(o.sym), px = q?.price;
     if (!(px > 0)) continue;
+    // never fill on a stale price (e.g. an unlisted holiday or a stuck feed): the last trade must be recent
+    if (q.time && Date.now() - q.time > 30 * 60e3) continue;
     let at = null;
     if (o.type === "market") at = slip(px, o.side);
     else if (o.type === "limit") at = o.side === "buy" ? (px <= o.price ? px : null) : (px >= o.price ? px : null);
@@ -223,6 +225,54 @@ export function checkHistory(o, candles) {
   }
   return false;
 }
+
+/* ---------- corporate actions ---------- */
+// Splits/bonus issues change share counts and prices; dividends pay cash to whoever held shares on the ex-date.
+// actions = { sym: {splits:[{t,ratio}], divs:[{t,amt}]} } with t in seconds. Each event is applied once.
+export function applyActions(actions) {
+  A.applied ||= {}; A.income ||= [];
+  const log = [];
+  for (const [sym, ev] of Object.entries(actions)) {
+    const events = [...ev.splits.map(x => ({ ...x, k: "s" })), ...ev.divs.map(x => ({ ...x, k: "d" }))].sort((a, b) => a.t - b.t);
+    for (const e of events) {
+      const key = `${sym}:${e.k}:${e.t}`, ms = e.t * 1000;
+      if (A.applied[key] || ms > Date.now()) continue;
+      if (e.k === "s") {
+        let n = 0;
+        for (const l of A.positions[sym]?.lots || []) {
+          if (l.at >= ms) continue;
+          const exact = l.qty * e.ratio, whole = Math.floor(exact);
+          l.px /= e.ratio; l.cost /= e.ratio; if (l.risk) l.risk /= e.ratio;
+          A.cash += (exact - whole) * l.px; // fractional entitlement paid out in cash
+          l.qty = whole; n++;
+        }
+        for (const o of A.orders) {
+          if (o.sym !== sym || o.status !== "open" || o.createdAt >= ms) continue;
+          o.qty = Math.max(1, Math.floor(o.qty * e.ratio));
+          ["price", "peak", "refPx"].forEach(k => { if (o[k]) o[k] = Math.round(o[k] / e.ratio * 100) / 100; });
+          if (o.bracket) ["sl", "target"].forEach(k => { if (o.bracket[k]) o.bracket[k] = Math.round(o.bracket[k] / e.ratio * 100) / 100; });
+          n++;
+        }
+        if (n) log.push(`${sym.replace(/\.(NS|BO)$/, "")}: ${e.ratio >= 1 ? `split/bonus ${e.ratio}-for-1` : `consolidation 1-for-${(1 / e.ratio).toFixed(0)}`} applied to your shares and orders`);
+      } else {
+        const held = (A.positions[sym]?.lots || []).filter(l => l.at < ms).reduce((a, l) => a + l.qty, 0)
+          + A.closed.filter(t => t.sym === sym && t.buyAt < ms && t.sellAt >= ms).reduce((a, t) => a + t.qty, 0);
+        // Yahoo adjusts past dividends for later splits; undo that to get the amount per share at the time
+        const later = ev.splits.filter(x => x.t > e.t).reduce((a, x) => a * x.ratio, 1);
+        if (held > 0) {
+          const perShare = e.amt * later, amt = held * perShare;
+          A.cash += amt;
+          A.income.push({ sym, t: ms, qty: held, perShare, amt });
+          log.push(`${sym.replace(/\.(NS|BO)$/, "")}: dividend of ₹${perShare.toFixed(2)} × ${held} shares = ₹${amt.toFixed(0)} credited`);
+        }
+      }
+      A.applied[key] = true;
+    }
+  }
+  save();
+  return log;
+}
+export const dividendsReceived = () => (A.income || []).reduce((a, d) => a + d.amt, 0);
 
 /* ---------- equity curve ---------- */
 export function value(getQuote) {

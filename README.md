@@ -76,6 +76,27 @@ Practise with pretend money (₹10 lakh by default) at live prices. It's deliver
 
 Code lives in `js/paper.js` (engine) and `js/views/paper.js` (page). Data is saved in this browser under its own key.
 
+### Accuracy: holidays, splits and dividends
+
+- **NSE holidays**: the 2026 holiday list is in `js/util.js` (`NSE_HOLIDAYS`), and the header shows **NSE HOLIDAY** on those days. Add next year's list when NSE publishes it, usually in December. As a second safety net, paper orders never fill on a price whose last trade is more than 30 minutes old.
+- **Splits, bonus issues and dividends** (`api/actions.js`, from Yahoo's chart events over the last 2 years):
+  - Paper trading adjusts your shares, average price and open orders on the ex-date, and credits dividends for shares you held on the ex-date.
+  - The Track record adjusts each plan's saved prices for splits and counts dividends as return. The Nifty gets an estimated 1.2% a year in dividends, so the comparison is fair.
+  - Price history from both Upstox and Yahoo is already adjusted for splits and bonus issues, so charts and scores needed no change.
+
+### Fast loading
+
+- **Batch endpoint**: `api/scan.js` returns fundamentals and a year of closes for up to 25 stocks per request. Vercel's CDN caches the result for 6 hours.
+- **Shared batches**: the browser always requests the same fixed batches, so every visitor shares the cache.
+- **Morning warm-up**: `api/warm.js` runs on Vercel Cron at 8:00 IST on weekdays (see `vercel.json`) and fills the cache before anyone visits. Set `CRON_SECRET` in Vercel to stop anyone else from triggering it.
+- **Saved in the browser**: technicals are kept for the rest of the day, so reopening the Buy plan shows it immediately and then refreshes prices.
+
+### Stock universe
+
+- The Nifty 50, the Next 50, and 126 midcaps from the Nifty Midcap 150. All three lists are in `js/universes.js`, compiled by hand.
+- The Buy plan picks from all of them, except Safe, which sticks to the Nifty 100.
+- NSE rebalances these indices in March and September; compare the lists with NSE's published CSVs then.
+
 ### Can you trust it? Track record and data checks
 
 - **Track record (`TRACK`)**: every buy plan is saved in your browser, once a day per risk level, with that day's prices. The page shows how each plan has done compared with buying the Nifty 50 on the same day, and gives an overall verdict. Plans count once they are 30 days old. Returns are price only, without dividends.

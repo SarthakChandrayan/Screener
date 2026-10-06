@@ -1,0 +1,9 @@
+{
+  "functions": {
+    "api/scan.js": { "maxDuration": 60 },
+    "api/warm.js": { "maxDuration": 60 }
+  },
+  "crons": [
+    { "path": "/api/warm", "schedule": "30 2 * * 1-5" }
+  ]
+}

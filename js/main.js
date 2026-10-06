@@ -181,6 +181,7 @@ function tick() {
   $("#clock").textContent = istNow().text + " IST";
   const el = $("#mkt");
   el.textContent = "NSE " + m.label;
+  el.title = m.holiday ? "Market holiday: " + m.holiday : "";
   el.className = "mkt " + (m.open ? "open" : "closed");
 }
 setInterval(tick, 1000);

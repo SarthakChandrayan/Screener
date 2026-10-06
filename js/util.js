@@ -122,7 +122,19 @@ export function rangeBar(lo, hi, v) {
   return `<span class="rbar" title="${fmt.px(lo)} – ${fmt.px(hi)}"><i style="left:${p.toFixed(1)}%"></i></span>`;
 }
 
-/* ---------- market hours (NSE, IST; exchange holidays not included) ---------- */
+/* ---------- market hours (NSE, IST) ---------- */
+// NSE equity trading holidays on weekdays. Add next year's list when NSE publishes it (usually in December).
+export const NSE_HOLIDAYS = {
+  "2026-01-26": "Republic Day", "2026-03-03": "Holi", "2026-03-26": "Shri Ram Navami", "2026-03-31": "Shri Mahavir Jayanti",
+  "2026-04-03": "Good Friday", "2026-04-14": "Ambedkar Jayanti", "2026-05-01": "Maharashtra Day", "2026-05-28": "Bakri Id",
+  "2026-06-26": "Moharram", "2026-09-14": "Ganesh Chaturthi", "2026-10-02": "Gandhi Jayanti", "2026-10-20": "Dussehra",
+  "2026-11-10": "Diwali Balipratipada", "2026-11-24": "Guru Nanak Jayanti", "2026-12-25": "Christmas",
+};
+export const istDate = (ms = Date.now()) => new Date(ms).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+export const isTradingDay = (ms = Date.now()) => {
+  const wd = new Date(ms).toLocaleDateString("en-US", { timeZone: "Asia/Kolkata", weekday: "short" });
+  return wd !== "Sat" && wd !== "Sun" && !NSE_HOLIDAYS[istDate(ms)];
+};
 export function istNow() {
   const p = Object.fromEntries(new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", hour12: false, weekday: "short", hour: "2-digit", minute: "2-digit", second: "2-digit" })
     .formatToParts(new Date()).map(x => [x.type, x.value]));
@@ -131,6 +143,8 @@ export function istNow() {
 export function marketStatus() {
   const t = istNow(), mins = t.h * 60 + t.m;
   if (t.day === "Sat" || t.day === "Sun") return { open: false, label: "CLOSED" };
+  const hol = NSE_HOLIDAYS[istDate()];
+  if (hol) return { open: false, label: "HOLIDAY", holiday: hol };
   if (mins >= 540 && mins < 555) return { open: true, label: "PRE-OPEN" };
   if (mins >= 555 && mins < 930) return { open: true, label: "OPEN" };
   return { open: false, label: "CLOSED" };

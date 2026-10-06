@@ -2,7 +2,7 @@
 // Self-contained: its data lives under its own storage key and it only reads the Buy plan's saved snapshots.
 
 import { $, $$, esc, fmt, cls, short, normSym, toast, debounce, marketStatus, downloadCSV } from "../util.js";
-import { getQuote, refreshQuotes, fetchChart } from "../api.js";
+import { getQuote, refreshQuotes, fetchChart, fetchActions } from "../api.js";
 import { STOCKS, nameOf, sectorOf } from "../universes.js";
 import { getPlans } from "../track.js";
 import * as P from "../paper.js";
@@ -82,13 +82,14 @@ export function mount(el, args) {
     const m = marketStatus();
     $("#pHero", el).innerHTML = `
       <div><div class="muted small">Paper account value</div><div class="ph-val">${rup(v.total)}</div>
-        <div class="muted">Started with ${rup(a.start)} on ${dayOf(a.createdAt)} · <span class="${m.open ? "up" : "muted"}">NSE ${m.label.toLowerCase()}</span></div></div>
+        <div class="muted">Started with ${rup(a.start)} on ${dayOf(a.createdAt)} · <span class="${m.open ? "up" : "muted"}">NSE ${m.holiday ? `closed for ${esc(m.holiday)}` : m.label.toLowerCase()}</span></div></div>
       <dl class="ph-stats">
         <div><dt>Total return</dt><dd class="${cls(ret)}">${fmt.inr(ret)} <small>${fmt.pct(ret / a.start * 100)}</small></dd></div>
         <div><dt>Nifty 50 same period</dt><dd class="${cls(nRet)}">${nRet == null ? "—" : fmt.pct(nRet)}</dd></div>
         <div><dt>Since yesterday</dt><dd class="${cls(today)}">${today == null ? "—" : fmt.inr(today)}</dd></div>
         <div><dt>Cash free</dt><dd>${rup(P.available())}</dd></div>
         <div><dt>Invested</dt><dd>${rup(v.held)}</dd></div>
+        ${P.dividendsReceived() ? `<div><dt>Dividends received</dt><dd class="up">${rup(P.dividendsReceived())}</dd></div>` : ""}
       </dl>
       <button class="btn" id="resetBtn" type="button">Reset account</button>`;
     $("#resetBtn", el).onclick = () => {
@@ -502,7 +503,18 @@ export function mount(el, args) {
 
   const syms = () => ["^NSEI", ...new Set([...Object.keys(A().positions), ...A().orders.filter(o => o.status === "open").map(o => o.sym), ...(T.sym ? [T.sym] : [])])];
   renderAll();
-  refreshQuotes(syms()).then(() => { runChecks(); P.recordEquity(getQuote); renderAll(); catchUp(); }).catch(() => catchUp());
+  // Splits/bonus issues and dividends first (they change share counts and order prices), then catch-up fills
+  async function corporateActions() {
+    const held = [...new Set([...Object.keys(A().positions), ...A().orders.filter(o => o.status === "open").map(o => o.sym), ...A().closed.filter(t => Date.now() - t.sellAt < 400 * 864e5).map(t => t.sym)])];
+    if (!held.length) return;
+    try {
+      const log = P.applyActions(await fetchActions(held));
+      log.forEach(m => toast(m));
+      if (log.length) renderAll();
+    } catch { /* next visit */ }
+  }
+  refreshQuotes(syms()).then(() => { runChecks(); P.recordEquity(getQuote); renderAll(); }).catch(() => {})
+    .then(corporateActions).then(catchUp);
 
   return {
     title: "Paper trading",
