@@ -79,6 +79,8 @@ export function techSummary(d) {
     px,
     r1w: ret(5), r1m: ret(21), r3m: ret(63), r6m: ret(126),
     r1y: c.length >= 240 ? (px / c[0] - 1) * 100 : null,
+    // "12-1" momentum: the past year's return leaving out the latest month (~21 sessions), which tends to reverse
+    r121: c.length >= 240 ? (c[c.length - 22] / c[0] - 1) * 100 : null,
     ytd: ytdIdx > 0 ? (px / c[ytdIdx - 1] - 1) * 100 : null,
     rsi: last(rsi(c)),
     sma20: s20, sma50: s50, sma200: s200,
