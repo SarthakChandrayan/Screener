@@ -6,7 +6,7 @@ import { nameOf, STOCKS } from "../universes.js";
 import { inWatch, addWatch, removeWatch } from "../state.js";
 import { chartPanel } from "../chart.js";
 import { techSummary } from "../tech.js";
-import { TECH, stockRow, peerContext } from "../scan.js";
+import { TECH, stockRow, peerContext, checkNews } from "../scan.js";
 import { PILLARS, scoreRow, verdict, scoreBar } from "../score.js";
 import { dataCheck, dataBadge } from "../dataqual.js";
 import { panel, kv, newsList, href } from "./common.js";
@@ -141,6 +141,7 @@ export function mount(el, args, { full = false } = {}) {
       ["HQ", esc(f.city || "—")], ["Website", f.website ? `<a href="${esc(f.website)}" target="_blank" rel="noopener noreferrer">${esc(f.website.replace(/^https?:\/\/(www\.)?/, ""))}</a>` : "—"],
     ])}` : `<p class="muted pad">No profile available.</p>`;
   }
+  if (equity && !full) checkNews([sym]).then(renderScore).catch(() => {});
   if (equity && !full) {
     fetchFundamentals([sym]).then(r => { fund = r[sym] || null; if (fund) { renderFund(); renderScore(); head(); } else throw new Error("No fundamentals for this symbol."); })
       .catch(e => ["#dVal", "#dProf", "#dAn", "#dProfile", ...(tech ? [] : ["#dScore"])].forEach(id => { const n = $(id, el); if (n) n.innerHTML = `<p class="muted pad">${esc(e.message)}</p>`; }));

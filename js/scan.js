@@ -2,7 +2,7 @@
 // (quote + fundamentals + technicals), and a scan that fills in whatever is missing.
 
 import { fmt, store, istDate } from "./util.js";
-import { getQuote, refreshQuotes, fetchFundamentals, cachedFundamentals, fundamentalsAt, fetchChart, pool, primeFundamentals, saveFundamentals, fetchScanBatch } from "./api.js";
+import { getQuote, refreshQuotes, fetchFundamentals, cachedFundamentals, fundamentalsAt, fetchChart, pool, primeFundamentals, saveFundamentals, fetchScanBatch, cachedRedFlags, fetchRedFlags } from "./api.js";
 import { nameOf, STOCKS, NIFTY50, NEXT50, MIDCAP } from "./universes.js";
 import { techSummary } from "./tech.js";
 import { buildContext } from "./score.js";
@@ -70,6 +70,8 @@ export function stockRow(s) {
     // multi-year history (api/fundamentals.js) and trading facts used by the scorecard
     nYrs: f.nYrs, histFrom: f.histFrom, histTo: f.histTo, revCagr: f.revCagr, epsCagr: f.epsCagr, profYrs: f.profYrs, niYrs: f.niYrs,
     revUpYrs: f.revUpYrs, avgRoe: f.avgRoe, roeMin: f.roeMin, cashConv: f.cashConv, fcfYrs: f.fcfYrs, dilution: f.dilution, deChange: f.deChange,
+    fScore: f.fScore, fMax: f.fMax, fFails: f.fFails, altmanZ: f.altmanZ,
+    newsFlags: cachedRedFlags(s),
     nextEarnings: f.nextEarnings, turnoverCr: f.avgVol && price ? f.avgVol * price / 1e7 : null,
   };
 }
@@ -97,4 +99,11 @@ export async function scanSymbols(syms, { say = () => {}, partial = () => {}, al
   const withF = syms.filter(s => cachedFundamentals(s)).length;
   say(`${syms.length} stocks · fundamentals for ${withF}${fundErr ? ` (${fundErr})` : ""} · technicals for ${syms.filter(s => TECH.has(s)).length} · ${fmt.time(Date.now())} IST`);
   return syms.map(stockRow);
+}
+
+// Check the news for warning signs on a shortlist (the stocks you're actually shown)
+export function checkNews(syms) {
+  const names = {};
+  syms.forEach(s => { names[s] = STOCKS.get(s)?.name || cachedFundamentals(s)?.name; });
+  return fetchRedFlags(syms, names);
 }

@@ -99,6 +99,22 @@ Code lives in `js/paper.js` (engine) and `js/views/paper.js` (page). Data is sav
   - upcoming quarterly results (for information only)
 - **Confidence (High / Medium / Low)** shows how much evidence a score rests on. The Buy plan skips Low-confidence stocks and stocks trading under ₹5 Cr a day. It also says "After results" when a pick's quarterly results are due within 10 days.
 
+### Health checks, news and the backtest
+
+- **Piotroski F-score and Altman Z-score**: built from the annual reports in `api/fundamentals.js`.
+  - The F-score runs 9 pass/fail checks on profit, cash flow, debt, liquidity, dilution, margin and efficiency trends. It adds to quality, and a score of 3 or less is flagged.
+  - The Altman Z''-score measures distress risk for non-financial companies. Below 1.1 is a serious flag; 1.1–2.6 is noted as the grey zone.
+- **News red flags** (`api/redflags.js`): scans the last 90 days of Google News headlines for each shortlisted stock (the Buy plan candidates, the top 20 ideas, and any stock page you open). It looks for:
+  - auditor resignations, fraud allegations, raids, SEBI action
+  - defaults and insolvency, invoked pledges, rating downgrades
+  - top-management exits, promoter selling, penalties, probes, tax demands
+
+  A headline only counts if it names the company. Serious matches keep a stock out of the Buy plan. Results are cached for 6 hours on the CDN and 12 hours in the browser.
+- **10-year backtest** (Track record page; `js/backtest.js`, data from `api/history.js`):
+  - Replays the share-price part of the method monthly: risk-adjusted 1-year and 6-month trend with a low-volatility tilt, top 10 stocks, at most 2 per sector, about 0.4% cost on trades.
+  - Compares it with the Nifty 50 and with buying every stock in our list equally. That second comparison offsets survivorship bias, since our list only contains today's index members.
+  - Company figures can't be backtested with free data.
+
 ### Accuracy: holidays, splits and dividends
 
 - **NSE holidays**: the 2026 holiday list is in `js/util.js` (`NSE_HOLIDAYS`), and the header shows **NSE HOLIDAY** on those days. Add next year's list when NSE publishes it, usually in December. As a second safety net, paper orders never fill on a price whose last trade is more than 30 minutes old.

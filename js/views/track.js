@@ -5,6 +5,7 @@ import { $, esc, fmt, cls, short, toast } from "../util.js";
 import { getQuote, refreshQuotes, fetchActions } from "../api.js";
 import { getPlans, clearPlans } from "../track.js";
 import { panel, href } from "./common.js";
+import { loadHistory, runBacktest, cachedBacktest, saveBacktest } from "../backtest.js";
 
 const JUDGE_DAYS = 30; // younger plans are shown but not counted: a few weeks is just noise
 const DAY = 864e5;
@@ -29,8 +30,31 @@ function evaluate(p) {
   return { ...p, stocks, ret, nifty, edge: ret != null && nifty != null ? ret - nifty : null, days, judged: days >= JUDGE_DAYS, coverage: priced.length / stocks.length };
 }
 
+const yr = sec => new Date(sec * 1000).getFullYear();
+const mon = sec => new Date(sec * 1000).toLocaleDateString("en-IN", { month: "short", year: "numeric" });
+
+function curveSVG(c) {
+  const W = 640, H = 210, pad = 30, keys = [["all", "bt-all"], ["nifty", "bt-n"], ["strat", "bt-s"]];
+  // log scale so a doubling looks the same at any point in time
+  const all = c.flatMap(p => keys.map(([k]) => Math.log(p[k])));
+  const lo = Math.min(...all, 0), hi = Math.max(...all, 0), span = hi - lo || 1;
+  const X = i => pad + i / (c.length - 1) * (W - pad * 2), Y = v => H - pad - (Math.log(v) - lo) / span * (H - pad * 2);
+  const end = k => c[c.length - 1][k];
+  return `<figure class="eq"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Growth of ₹1: method picks vs all stocks equally vs Nifty 50">
+    <line x1="${pad}" x2="${W - pad}" y1="${Y(1)}" y2="${Y(1)}" class="eq-base"/>
+    ${keys.map(([k, cl]) => `<polyline class="${cl}" points="${c.map((p, i) => `${X(i).toFixed(1)},${Y(p[k]).toFixed(1)}`).join(" ")}"/>`).join("")}
+    <text x="${pad}" y="${H - 8}" class="eq-t">${mon(c[0].t)}</text><text x="${W - pad}" y="${H - 8}" class="eq-t" text-anchor="end">${mon(c[c.length - 1].t)}</text>
+    ${(() => { // end labels, nudged apart so they never overlap
+      const L = keys.map(([k, cl]) => ({ cl, v: end(k), y: Y(end(k)) - 5 })).sort((a, b) => a.y - b.y);
+      for (let i = 1; i < L.length; i++) if (L[i].y - L[i - 1].y < 16) L[i].y = L[i - 1].y + 16;
+      return L.map(l => `<text x="${W - pad - 2}" y="${l.y.toFixed(1)}" class="eq-t ${l.cl}t" text-anchor="end">₹${l.v.toFixed(1)}</text>`).join("");
+    })()}
+  </svg><figcaption><span class="lg bt-sl"></span>Method's top 10 <span class="lg bt-alll"></span>All ${"stocks"} equally <span class="lg bt-nl"></span>Nifty 50 · what ₹1 became (log scale)</figcaption></figure>`;
+}
+
 export function mount(el) {
-  el.innerHTML = `<div id="tHero"></div><div id="tList"></div>`;
+  el.innerHTML = `<div id="tHero"></div><div id="tBack"></div><div id="tList"></div>`;
+  renderBacktest();
 
   function render() {
     const open = new Set([...el.querySelectorAll("details.trk[open]")].map(d => d.dataset.at));
@@ -89,6 +113,61 @@ export function mount(el) {
       if (!confirm("Delete all saved plans? This can't be undone.")) return;
       clearPlans(); toast("Track record cleared"); render();
     };
+  }
+
+  // ---- 10-year backtest of the price-based part of the method ----
+  function renderBacktest(state = "") {
+    const box = $("#tBack", el), r = cachedBacktest();
+    const intro = `<p class="prose">Replays the share-price part of our scoring (steady 1-year and 6-month trends, calmer stocks preferred) every month for about 10 years: buy the top 10 (max 2 per sector), hold a month, pay about 0.4% on every trade. It's compared with the Nifty 50 and with simply buying all ${227} stocks in our list equally.</p>`;
+    if (!r) {
+      box.innerHTML = panel("Backtest · would the method have worked?", `<div class="pad">${intro}
+        <button class="btn amber" id="btRun" type="button" ${state ? "disabled" : ""}>Run the 10-year test</button> <span class="muted small" id="btState">${esc(state || "Downloads about 1 MB of price history the first time; takes a few seconds.")}</span></div>`, { cls: "btest" });
+      $("#btRun", el).onclick = runIt;
+      return;
+    }
+    const beatAll = r.yearsBeatAll / r.fullYears, edge = r.cagr.strat - r.cagr.all;
+    const v = beatAll >= 0.6 && edge > 2 ? ["mood-2", `The method beat buying everything equally in ${r.yearsBeatAll} of ${r.fullYears} full years`, `It returned ${fmt.pct(r.cagr.strat, 1)} a year vs ${fmt.pct(r.cagr.all, 1)} for all stocks equally and ${fmt.pct(r.cagr.nifty, 1)} for the Nifty 50. A real edge in the past, which is encouraging, though not a promise for the future.`]
+      : edge > 0 ? ["mood-1", `A small edge: ${r.yearsBeatAll} of ${r.fullYears} full years ahead of buying everything equally`, `${fmt.pct(r.cagr.strat, 1)} a year vs ${fmt.pct(r.cagr.all, 1)} (all stocks) and ${fmt.pct(r.cagr.nifty, 1)} (Nifty 50). Helpful, but not a strong enough edge to bet heavily on.`]
+      : ["mood-0", `No edge: the method did worse than buying every stock equally`, `${fmt.pct(r.cagr.strat, 1)} a year vs ${fmt.pct(r.cagr.all, 1)} (all stocks) and ${fmt.pct(r.cagr.nifty, 1)} (Nifty 50). Lean on the company-quality checks and an index fund rather than on price trends.`];
+    box.innerHTML = panel(`Backtest · ${mon(r.from)} to ${mon(r.to)} <span class="muted">run ${esc(new Date(r.at).toLocaleDateString("en-IN"))}</span>`, `<div class="memo-body">
+      <div class="mood ${v[0]}"><b>${esc(v[1])}</b><span>${esc(v[2])}</span></div>
+      <div class="tiles">
+        <div><small>Method, per year</small><b class="${cls(r.cagr.strat)}">${fmt.pct(r.cagr.strat, 1)}</b><span>worst fall ${fmt.pct(r.maxDD.strat, 0)}</span></div>
+        <div><small>All stocks equally</small><b>${fmt.pct(r.cagr.all, 1)}</b><span>worst fall ${fmt.pct(r.maxDD.all, 0)}</span></div>
+        <div><small>Nifty 50</small><b>${fmt.pct(r.cagr.nifty, 1)}</b><span>worst fall ${fmt.pct(r.maxDD.nifty, 0)}</span></div>
+        <div><small>Months ahead of Nifty</small><b>${r.monthsBeatNifty} / ${r.months}</b><span>${Math.round(r.monthsBeatNifty / r.months * 100)}% of months</span></div>
+        <div><small>Worst calendar year</small><b class="${cls(r.worstYear)}">${fmt.pct(r.worstYear, 1)}</b><span>${r.worstYear < 0 ? "could you sit through that?" : "no losing year in this period"}</span></div>
+      </div>
+      ${curveSVG(r.curve)}
+      <div class="tbl"><table class="t"><thead><tr><th class="l">Year</th><th>Method</th><th>All stocks</th><th>Nifty 50</th><th class="l">Result</th></tr></thead><tbody>
+        ${r.yearly.map(y => `<tr><td class="l">${y.year}${y.months < 10 ? ` <span class="muted small">(${y.months} months)</span>` : ""}</td><td class="${cls(y.strat)}">${fmt.pct(y.strat, 1)}</td><td>${fmt.pct(y.all, 1)}</td><td>${fmt.pct(y.nifty, 1)}</td>
+          <td class="l">${y.strat > y.all ? `<span class="up">ahead by ${(y.strat - y.all).toFixed(1)} pts</span>` : `<span class="dn">behind by ${(y.all - y.strat).toFixed(1)} pts</span>`}</td></tr>`).join("")}
+      </tbody></table></div>
+      <details class="explain"><summary>What this test can and can't tell you ▸</summary><ul class="why pad">
+        <li><b>Tested:</b> the share-price part of the score (trend strength divided by volatility, preferring calmer stocks) with monthly rebalancing and trading costs.</li>
+        <li><b>Not tested:</b> the company-quality, value and growth checks, the red flags and the news scan. Free data doesn't show what a company's figures looked like on past dates, so testing them would quietly use future information.</li>
+        <li><b>Survivorship bias:</b> the stock list is today's index members, so companies that collapsed or were dropped are missing. That flatters both the method and "all stocks equally", which is why the fair comparison is between those two, not with the Nifty.</li>
+        <li><b>Prices only:</b> dividends are left out on every side, about 1–1.5% a year.</li>
+        <li><b>Past results don't guarantee future ones.</b> Momentum has worked in Indian stocks over long periods, but it can lag badly for a year or two, especially after sharp market turns.</li>
+      </ul></details>
+      <p class="sources">Current top 10 by this rule: ${r.lastPicks.map(s => `<a class="sym" href="${href("DES", s)}">${esc(short(s))}</a>`).join(", ")} · <button class="ib" id="btRun" type="button">Re-run</button> <span class="muted small" id="btState">${esc(state)}</span></p>
+    </div>`, { cls: "btest" });
+    $("#btRun", el).onclick = runIt;
+  }
+  let running = false;
+  async function runIt() {
+    if (running) return;
+    running = true;
+    const say = t => { const n = $("#btState", el); if (n) n.textContent = t; };
+    try {
+      say("Downloading 10 years of prices…");
+      const hist = await loadHistory(p => say(`Downloading 10 years of prices… ${Math.round(p * 100)}%`));
+      say("Replaying ~120 months…");
+      const r = runBacktest(hist);
+      if (!r) throw new Error("Not enough price history came back to run the test.");
+      saveBacktest(r); renderBacktest();
+    } catch (e) { say(e.message); }
+    running = false;
   }
 
   const syms = () => ["^NSEI", ...new Set(getPlans().flatMap(p => p.picks.map(s => s.sym)))];

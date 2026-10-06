@@ -72,7 +72,7 @@ export const fetchNews = q => memoFetch("n:" + q, 300e3, () => j("/api/news?q=" 
 
 // Fundamentals change slowly, so they are cached in the browser for 12 hours.
 try { localStorage.removeItem("bahi-fund-v1"); } catch { /* old cache format */ }
-const FKEY = "screener-fund-v2", FTTL = 12 * 3600e3;
+const FKEY = "screener-fund-v3", FTTL = 12 * 3600e3;
 let fcache = store.get(FKEY, {});
 export function cachedFundamentals(sym) {
   const e = fcache[sym];
@@ -83,8 +83,8 @@ export const fundamentalsAt = sym => (cachedFundamentals(sym) ? fcache[sym].at :
 // Store fundamentals that arrived some other way (the /api/scan batches); call saveFundamentals() after
 export const primeFundamentals = (sym, d) => { if (d) fcache[sym] = { at: Date.now(), d }; };
 export const saveFundamentals = () => store.set(FKEY, fcache);
-// v=2 matches api/warm.js; bump both when the response format changes so the CDN cache refreshes
-export const fetchScanBatch = syms => j("/api/scan?s=" + encodeURIComponent(syms.join(",")) + "&v=2");
+// v=3 matches api/warm.js; bump both when the response format changes so the CDN cache refreshes
+export const fetchScanBatch = syms => j("/api/scan?s=" + encodeURIComponent(syms.join(",")) + "&v=3");
 export async function fetchFundamentals(syms, onProgress) {
   const need = syms.filter(s => !cachedFundamentals(s));
   let done = syms.length - need.length, errors = 0, lastErr = null;
@@ -127,4 +127,25 @@ export async function fetchActions(syms) {
   const out = {};
   syms.forEach(s => { if (acache[s]) out[s] = acache[s].d; });
   return out;
+}
+
+// News red flags per stock ([{sev, cat, title, link, source, time}]), cached in the browser for 12 hours.
+// names: {sym: company name}; only stocks not checked recently are fetched, 10 per request.
+const RKEY = "screener-redflags-v1";
+let rcache = store.get(RKEY, {});
+export const cachedRedFlags = sym => { const e = rcache[sym]; return e && Date.now() - e.at < 12 * 3600e3 ? e.d : null; };
+export async function fetchRedFlags(syms, names) {
+  const need = [...new Set(syms)].filter(s => /\.(NS|BO)$/.test(s) && !cachedRedFlags(s) && names[s]);
+  const chunks = [];
+  for (let i = 0; i < need.length; i += 10) chunks.push(need.slice(i, i + 10));
+  await pool(chunks, 3, async c => {
+    try {
+      const items = c.map(s => `${s}~${String(names[s]).replace(/[|~]/g, " ").slice(0, 70)}`).join("|");
+      const r = await j("/api/redflags?items=" + encodeURIComponent(items));
+      for (const [k, v] of Object.entries(r.data || {})) rcache[k] = { at: Date.now(), d: v };
+    } catch { /* news is a bonus check; try again next time */ }
+  });
+  const now = Date.now();
+  for (const k of Object.keys(rcache)) if (now - rcache[k].at > 12 * 3600e3) delete rcache[k];
+  store.set(RKEY, rcache);
 }

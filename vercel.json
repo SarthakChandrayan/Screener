@@ -1,6 +1,8 @@
 {
   "functions": {
     "api/scan.js": { "maxDuration": 60 },
+    "api/history.js": { "maxDuration": 60 },
+    "api/redflags.js": { "maxDuration": 60 },
     "api/warm.js": { "maxDuration": 60 }
   },
   "crons": [
