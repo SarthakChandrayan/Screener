@@ -5,6 +5,7 @@ import { fmt, store, istDate } from "./util.js";
 import { getQuote, refreshQuotes, fetchFundamentals, cachedFundamentals, fundamentalsAt, fetchChart, pool, primeFundamentals, saveFundamentals, fetchScanBatch } from "./api.js";
 import { nameOf, STOCKS, NIFTY50, NEXT50, MIDCAP } from "./universes.js";
 import { techSummary } from "./tech.js";
+import { buildContext } from "./score.js";
 
 // Technicals are kept for the rest of the (IST) day, so coming back to a page is instant
 const TKEY = "screener-tech-v1";
@@ -38,6 +39,19 @@ async function fillFromBatches(syms, say, alive) {
   saveTech();
 }
 
+// Peer group for scoring: every stock loaded so far (up to all 227 in the universe) plus any extra rows,
+// so a stock is compared with the same peers wherever it's shown. Rebuilt at most every 30 seconds.
+let peerMemo = { at: 0, n: -1, ctx: null };
+export function peerContext(extra = []) {
+  const base = MASTER.filter(ready);
+  const others = extra.filter(r => !MASTER_IDX.has(r.sym));
+  const n = base.length * 1000 + others.length;
+  if (!others.length && peerMemo.ctx && peerMemo.n === n && Date.now() - peerMemo.at < 30e3) return peerMemo.ctx;
+  const ctx = buildContext([...base.map(stockRow), ...others]);
+  if (!others.length) peerMemo = { at: Date.now(), n, ctx };
+  return ctx;
+}
+
 export function stockRow(s) {
   const q = getQuote(s) || {}, f = cachedFundamentals(s) || {}, t = TECH.get(s) || {};
   const price = q.price ?? t.px ?? null, w52h = q.w52h ?? f.w52h;
@@ -53,6 +67,10 @@ export function stockRow(s) {
     rsi: t.rsi, vsSma50: t.vsSma50, vsSma200: t.vsSma200, volRatio: t.volRatio, volatility: t.volatility,
     // for data checks (js/dataqual.js)
     eps: f.eps, histPx: t.px ?? null, fundAt: fundamentalsAt(s), hasQuote: q.price != null,
+    // multi-year history (api/fundamentals.js) and trading facts used by the scorecard
+    nYrs: f.nYrs, histFrom: f.histFrom, histTo: f.histTo, revCagr: f.revCagr, epsCagr: f.epsCagr, profYrs: f.profYrs, niYrs: f.niYrs,
+    revUpYrs: f.revUpYrs, avgRoe: f.avgRoe, roeMin: f.roeMin, cashConv: f.cashConv, fcfYrs: f.fcfYrs, dilution: f.dilution, deChange: f.deChange,
+    nextEarnings: f.nextEarnings, turnoverCr: f.avgVol && price ? f.avgVol * price / 1e7 : null,
   };
 }
 

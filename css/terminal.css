@@ -175,6 +175,8 @@ details.more summary { cursor: pointer; color: var(--blue); }
 .idea .who { min-width: 0; } .idea .who .sym { font-size: 15px; } .idea .sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .big { font-size: 26px; font-weight: 700; line-height: 1; } .big small { font-size: 11px; color: var(--muted); font-weight: 400; }
 .verdict { font-weight: 600; font-size: 12px; }
+.conf { font-size: 10px; font-weight: 600; padding: 0 5px; border: 1px solid currentColor; margin-left: 4px; white-space: nowrap; }
+.conf-high { color: var(--up); } .conf-medium { color: var(--amber); } .conf-low { color: var(--dn); }
 .idea footer { display: flex; gap: 4px; margin-top: auto; padding-top: 4px; }
 .btn[disabled] { opacity: .6; cursor: default; }
 .pbars { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; margin: 2px 0; align-items: center; font-size: 11.5px; }

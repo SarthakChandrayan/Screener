@@ -3,7 +3,7 @@
 
 import { $, esc, fmt, cls, toast, parseCSV, toNum, downloadCSV, normSym, short, store, debounce } from "../util.js";
 import { UNIVERSES, universe, getCustom, setCustom, addWatch } from "../state.js";
-import { scanSymbols, stockRow } from "../scan.js";
+import { scanSymbols, stockRow, peerContext } from "../scan.js";
 import { scoreRow } from "../score.js";
 import { tip } from "../glossary.js";
 import { panel, sortTable, nextSort, href } from "./common.js";
@@ -58,7 +58,7 @@ let S = {
 const live = () => S.uni !== "CSV";
 
 // Score is the Balanced scorecard from IDEAS, so you can filter or sort on it here too
-const liveRows = () => universe(S.uni).map(stockRow).map(r => ({ ...r, score: scoreRow(r).score }));
+const liveRows = () => { const rows = universe(S.uni).map(stockRow), ctx = peerContext(rows); return rows.map(r => ({ ...r, score: scoreRow(r, undefined, ctx).score })); };
 
 function loadCSV(text, label) {
   const rows = parseCSV(text);

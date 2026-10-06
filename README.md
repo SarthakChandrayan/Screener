@@ -76,6 +76,29 @@ Practise with pretend money (₹10 lakh by default) at live prices. It's deliver
 
 Code lives in `js/paper.js` (engine) and `js/views/paper.js` (page). Data is saved in this browser under its own key.
 
+### How stocks are scored (`js/score.js`)
+
+- **Multi-year history**: `api/fundamentals.js` adds up to 4 years of annual results from Yahoo's fundamentals timeseries:
+  - sales and EPS compound growth
+  - average ROE
+  - how many years were profitable
+  - cash conversion (operating cash flow ÷ profit)
+  - share dilution and debt trend
+
+  These count for more than the latest year.
+- **Peer ranking**: each number is scored 60% on its rank among peers and 40% on a fixed rule of thumb.
+  - Valuation and margins are ranked within the same sector; everything else is ranked across all stocks loaded (up to 227).
+  - This follows the same idea as NSE's factor indices (Quality 30, Momentum 30, Low Volatility).
+- **Momentum** is return divided by volatility, so steady climbers rank above erratic ones.
+- **New red flags**:
+  - losses in past years
+  - profits that don't turn into cash
+  - share dilution
+  - rising debt
+  - thin trading
+  - upcoming quarterly results (for information only)
+- **Confidence (High / Medium / Low)** shows how much evidence a score rests on. The Buy plan skips Low-confidence stocks and stocks trading under ₹5 Cr a day. It also says "After results" when a pick's quarterly results are due within 10 days.
+
 ### Accuracy: holidays, splits and dividends
 
 - **NSE holidays**: the 2026 holiday list is in `js/util.js` (`NSE_HOLIDAYS`), and the header shows **NSE HOLIDAY** on those days. Add next year's list when NSE publishes it, usually in December. As a second safety net, paper orders never fill on a price whose last trade is more than 30 minutes old.

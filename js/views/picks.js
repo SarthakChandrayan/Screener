@@ -8,9 +8,9 @@ import { fetchChart, getQuote, feed } from "../api.js";
 import { dataCheck, dataBadge } from "../dataqual.js";
 import { savePlan } from "../track.js";
 import { techSummary } from "../tech.js";
-import { scanSymbols, stockRow, TECH, coverage } from "../scan.js";
+import { scanSymbols, stockRow, TECH, coverage, peerContext } from "../scan.js";
 import { istDate } from "../util.js";
-import { scoreRow, verdict } from "../score.js";
+import { scoreRow, verdict, resultsSoon } from "../score.js";
 import { panel, href } from "./common.js";
 
 const PROFILES = {
@@ -68,6 +68,10 @@ function marketMood(t) {
 // Plain-English entry instruction for one stock
 function entryPlan(r, t) {
   const s50 = t?.sma50;
+  if (resultsSoon(r)) {
+    const d = new Date(r.nextEarnings * 1000).toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "Asia/Kolkata" });
+    return { tag: "After results", c: "v-mid", text: `Quarterly results are due around ${d}. Wait for them; buy if nothing bad comes out.` };
+  }
   if ((ok(r.rsi) && r.rsi > 70) || (ok(r.vsSma50) && r.vsSma50 > 12)) {
     return { tag: "Wait for a dip", c: "v-mid", text: `Ran up recently. Buy a third now, the rest if it comes back near ${s50 ? fmt.inr(s50) : "its 50-day average"}.` };
   }
@@ -82,13 +86,17 @@ function reviewLevel(r, t) {
 }
 
 function buildPlan(rows, prof, amount, mood) {
-  const scored = rows.map(r => ({ ...r, ...scoreRow(r, { w: prof.w }), dq: dataCheck(r) }));
+  const ctx = peerContext(rows);
+  const scored = rows.map(r => ({ ...r, ...scoreRow(r, { w: prof.w }, ctx), dq: dataCheck(r) }));
   const candidates = scored
     .filter(r => r.score != null && r.coverage >= 0.6 && r.score >= prof.minScore && ok(r.price))
     .filter(r => !r.flags.some(f => f.sev === 2))
     .filter(r => !ok(r.volatility) || r.volatility <= prof.maxVol)
     .filter(r => !ok(r.offHigh) || r.offHigh >= prof.maxFall)
     .filter(r => !prof.largeOnly || LARGE.has(r.sym))
+    // only recommend what we can judge properly, and what you can actually buy and sell easily
+    .filter(r => r.confidence !== "Low")
+    .filter(r => !ok(r.turnoverCr) || r.turnoverCr >= 5)
     .filter(r => !prof.minMcap || !ok(r.mcapCr) || r.mcapCr >= prof.minMcap)
     .sort((a, b) => b.score - a.score);
   // Never recommend a stock whose numbers are missing or contradict each other

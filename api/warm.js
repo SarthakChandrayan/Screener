@@ -20,7 +20,7 @@ module.exports = async (req, res) => {
     for (let i = 0; i < syms.length; i += CHUNK) chunks.push(syms.slice(i, i + CHUNK));
     let warmed = 0;
     await mapLimit(chunks, 4, async c => {
-      const r = await fetch(base + "/api/scan?s=" + encodeURIComponent(c.join(","))).catch(() => null);
+      const r = await fetch(base + "/api/scan?s=" + encodeURIComponent(c.join(",")) + "&v=2").catch(() => null);
       if (r?.ok) warmed++;
     });
     send(res, 200, { stocks: syms.length, batches: chunks.length, warmed });
