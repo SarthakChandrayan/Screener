@@ -3,7 +3,7 @@
 
 import { $, esc, fmt, cls, short, store, toast } from "../util.js";
 import { universe, addWatch, inWatch } from "../state.js";
-import { scanSymbols, stockRow, peerContext } from "../scan.js";
+import { scanSymbols, stockRow, peerContext, checkNews } from "../scan.js";
 import { PILLARS, STYLES, scoreRow, verdict, scoreBar } from "../score.js";
 import { dataCheck, dataBadge } from "../dataqual.js";
 import { panel, universeSelect, sortTable, nextSort, href } from "./common.js";
@@ -51,6 +51,8 @@ export function mount(el) {
       <span class="v-mid">40–54 Mixed</span> — some real weaknesses.<br>
       <span class="dn">Below 40 Weak right now</span> — the numbers don't support it today.</p>
       <p><b>How each number is judged:</b> against rules of thumb <i>and</i> against its peers. Valuation and margins are compared with the same sector (a P/E of 40 is normal for FMCG but expensive for a bank); everything else is compared with all the stocks loaded. Three to four years of annual results count for more than the latest year, so one lucky or unlucky year can't decide the score. Share-price momentum is divided by how jumpy the stock is, as NSE's own momentum indices do, so steady climbers beat lottery tickets.</p>
+      <p><b>Financial health</b> also counts the Piotroski F-score (9 checks on profit, cash flow, debt and efficiency trends) and, for non-financial companies, the Altman Z-score (distress risk). The top ideas are also checked against the last 90 days of news for warning signs such as auditor resignations, raids, SEBI action, defaults or rating downgrades.</p>
+      <p><b>Does it work?</b> The share-price part of the method is replayed over 10 years on the <a class="sym" href="${href("TRACK")}">Track record</a> page, so you can see how it would have done.</p>
       <p><b>Confidence</b> shows how much evidence a score rests on: <span class="conf conf-high">High</span> means most numbers plus several years of history; <span class="conf conf-low">Low</span> means too much is missing to trust it (the Buy plan never uses Low-confidence stocks).</p>
       <p class="muted">Each serious red flag (losses in several years, heavy debt, profits that don't turn into cash, collapsing profits) takes 8 points off; minor ones take 3; information-only notes (results coming up, unusual volume) take nothing. Banks and finance companies aren't judged on debt or operating margin, since borrowing is their business. Data comes from Yahoo Finance and can be missing or out of date — always check the company's own results.</p>
     </div>`, { cls: "c6" })}
@@ -109,6 +111,11 @@ export function mount(el) {
     const partial = () => { if (my === seq) render(); };
     await scanSymbols(syms, { say, partial, alive: () => my === seq, fresh });
     partial();
+    // news check for the stocks you're shown (top 20), then re-rank with any warnings included
+    const top = scored().filter(r => r.score != null).sort((a, b) => b.score - a.score).slice(0, 20).map(r => r.sym);
+    say("Checking recent news for warning signs…");
+    await checkNews(top);
+    if (my === seq) { say(`${syms.length} stocks scored · news checked for the top ${top.length} · ${fmt.time(Date.now())} IST`); partial(); }
   }
 
   $("#uni", el).onchange = e => { uni = e.target.value; store.set("bahi-ideas-uni", uni); if (scanned) run(false); };

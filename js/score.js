@@ -20,7 +20,7 @@ export const PILLARS = [
   ["value", "Value", "Is the price reasonable vs its profits and vs its sector? (P/E, P/B, EV/EBITDA, PEG)"],
   ["growth", "Growth", "Have sales and profits grown over several years?"],
   ["momentum", "Momentum", "Is the share price in a steady uptrend? (risk-adjusted 6M/1Y returns)"],
-  ["safety", "Safety", "How risky is it? (debt, volatility, dilution)"],
+  ["safety", "Safety", "How risky is it? (debt, distress risk, volatility, dilution)"],
   ["income", "Income", "Does it pay you to hold it? (dividend yield)"],
 ];
 
@@ -42,6 +42,7 @@ const DERIVED = {
   mom12: r => (ok(r.r1y) && r.volatility > 0 ? r.r1y / r.volatility : null),              // 1Y return per unit of risk
   mom6: r => (ok(r.r6m) && r.volatility > 0 ? r.r6m / (r.volatility / Math.SQRT2) : null), // 6M return per unit of 6M risk
   profRatio: r => (r.niYrs >= 3 ? r.profYrs / r.niYrs : null),
+  fNorm: r => (r.fMax >= 6 ? r.fScore / r.fMax * 9 : null),
 };
 const val = (r, k) => (DERIVED[k] ? DERIVED[k](r) : r[k]);
 
@@ -54,6 +55,7 @@ const METRICS = [
   { k: "roe", p: "quality", w: 1.5, dir: 1, abs: [5, 22], peer: "all", say: v => `ROE ${p1(v)}% — makes ₹${p1(v)} a year on every ₹100 of shareholders' money` },
   { k: "cashConv", p: "quality", w: 1.5, dir: 1, abs: [0.4, 1.0], peer: null, when: notFin, say: v => `Turns ${Math.round(Math.min(v, 1.5) * 100)}% of its reported profit into actual cash` },
   { k: "profRatio", p: "quality", w: 1, dir: 1, abs: [0.5, 1], peer: null, say: (v, r) => (v === 1 ? `Profitable in every one of the last ${r.niYrs} years` : null) },
+  { k: "fNorm", p: "quality", w: 1.5, dir: 1, abs: [3, 8], peer: null, say: (v, r) => `Piotroski F-score ${r.fScore}/${r.fMax} — healthy and improving finances (profit, cash flow, debt, efficiency all checked)` },
   { k: "opm", p: "quality", w: 1, dir: 1, abs: [5, 25], peer: "sector", when: notFin, say: v => `Operating margin ${p1(v)}% — better than most companies in its sector` },
   { k: "npm", p: "quality", w: 1, dir: 1, abs: [2, 18], peer: "sector", say: v => `Net margin ${p1(v)}% — healthy final profit on sales` },
   { k: "roa", p: "quality", w: 0.75, dir: 1, abs: [1, 10], absFin: [0.5, 2], peer: "sector", say: v => `ROA ${p1(v)}% — earns well on everything it owns` },
@@ -76,6 +78,7 @@ const METRICS = [
   { k: "de", p: "safety", w: 1.5, dir: -1, abs: [2, 0], peer: null, when: notFin, say: v => (v < 0.05 ? "Practically debt-free" : `Low debt (debt/equity ${v.toFixed(2)})`) },
   { k: "volatility", p: "safety", w: 1.5, dir: -1, abs: [50, 18], peer: "all", say: v => `Calmer share price than most (volatility ${p1(v)}% a year)` },
   { k: "beta", p: "safety", w: 0.75, dir: -1, abs: [1.6, 0.7], peer: null, say: v => `Beta ${v.toFixed(2)} — swings less than the market` },
+  { k: "altmanZ", p: "safety", w: 1, dir: 1, abs: [1.1, 4], peer: null, when: notFin, say: v => `Altman Z-score ${v.toFixed(1)} — very low risk of financial distress` },
   { k: "cr", p: "safety", w: 0.5, dir: 1, abs: [0.8, 2], peer: null, when: notFin, say: v => `Current ratio ${v.toFixed(2)} — can easily pay this year's bills` },
   { k: "dilution", p: "safety", w: 0.75, dir: -1, abs: [20, 0], peer: null, say: v => (v <= 1 ? "Hasn't been issuing new shares (no dilution)" : null) },
   // income
@@ -139,12 +142,18 @@ const FLAGS = [
   r => (ok(r.revGrowth) && r.revGrowth < 0 ? [1, `Sales shrank ${p1(-r.revGrowth)}% in the latest year`] : null),
   r => (ok(r.dilution) && r.dilution > 10 ? [1, `Share count up ${p1(r.dilution)}% in ${r.nYrs - 1} years — new shares dilute existing owners`] : null),
   r => (notFin(r) && ok(r.deChange) && r.deChange > 0.5 ? [1, `Debt rising fast (debt/equity up ${r.deChange.toFixed(2)} in ${r.nYrs - 1} years)`] : null),
+  r => (r.fMax >= 7 && r.fScore <= 3 ? [1, `Weak financial health: Piotroski F-score ${r.fScore}/${r.fMax} (${(r.fFails || []).slice(0, 3).join("; ")})`] : null),
+  r => (notFin(r) && ok(r.altmanZ) && r.altmanZ < 1.1 ? [2, `Financial distress warning: Altman Z-score ${r.altmanZ.toFixed(2)} (below 1.1 signals high risk)`]
+    : notFin(r) && ok(r.altmanZ) && r.altmanZ < 2.6 ? [0, `Altman Z-score ${r.altmanZ.toFixed(2)} is in the grey zone — keep an eye on debt and liquidity`] : null),
   r => (ok(r.pe) && r.pe > 70 ? [1, `Very expensive (P/E ${p1(r.pe)}) — needs years of strong growth to justify`] : null),
   r => (ok(r.vsSma200) && r.vsSma200 < -10 ? [1, `In a downtrend: ${p1(-r.vsSma200)}% below its 200-day average`] : null),
   r => (ok(r.offHigh) && r.offHigh < -35 ? [1, `Down ${p1(-r.offHigh)}% from its 52-week high — find out why`] : null),
   r => (ok(r.rsi) && r.rsi > 75 ? [1, `Ran up fast recently (RSI ${p1(r.rsi)}) — may cool off; don't chase`] : null),
   r => (ok(r.volatility) && r.volatility > 45 ? [1, `Very jumpy price (volatility ${p1(r.volatility)}%)`] : null),
   r => (ok(r.turnoverCr) && r.turnoverCr < 5 ? [1, `Thinly traded (about ₹${p1(r.turnoverCr)} Cr a day) — hard to buy or sell without moving the price`] : null),
+  // warning signs in the last 90 days of news (api/redflags.js)
+  r => (r.newsFlags?.[0] ? [r.newsFlags[0].sev, `In the news (${dayFmt(r.newsFlags[0].time || Date.now())}): ${r.newsFlags[0].cat.toLowerCase()} — "${r.newsFlags[0].title}"`] : null),
+  r => (r.newsFlags?.[1] ? [r.newsFlags[1].sev, `In the news (${dayFmt(r.newsFlags[1].time || Date.now())}): ${r.newsFlags[1].cat.toLowerCase()} — "${r.newsFlags[1].title}"`] : null),
   r => (ok(r.volRatio) && r.volRatio > 3 ? [0, `Unusual volume today (${r.volRatio.toFixed(1)}× normal) — check the news`] : null),
   r => {
     const d = r.nextEarnings ? (r.nextEarnings * 1000 - Date.now()) / 864e5 : null;

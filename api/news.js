@@ -40,3 +40,4 @@ module.exports = async (req, res) => {
     send(res, 502, { error: e.message });
   }
 };
+module.exports.google = google;

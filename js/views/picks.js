@@ -8,7 +8,7 @@ import { fetchChart, getQuote, feed } from "../api.js";
 import { dataCheck, dataBadge } from "../dataqual.js";
 import { savePlan } from "../track.js";
 import { techSummary } from "../tech.js";
-import { scanSymbols, stockRow, TECH, coverage, peerContext } from "../scan.js";
+import { scanSymbols, stockRow, TECH, coverage, peerContext, checkNews } from "../scan.js";
 import { istDate } from "../util.js";
 import { scoreRow, verdict, resultsSoon } from "../score.js";
 import { panel, href } from "./common.js";
@@ -236,8 +236,19 @@ export function mount(el) {
     const res = await scanSymbols(syms, { say, alive, fresh, partial: () => {} });
     await nifty;
     if (!alive() || !res) return;
+    rows = syms.map(stockRow);
+    render();
+    // Check the news on every stock that could make any risk level's list, then rebuild the plan.
+    // Only after this is the plan saved to the Track record.
+    const ctx = peerContext(rows), short = new Set();
+    for (const p of Object.values(PROFILES)) {
+      rows.map(r => ({ r, s: scoreRow(r, { w: p.w }, ctx).score })).filter(x => x.s != null).sort((a, b) => b.s - a.s).slice(0, 25).forEach(x => short.add(x.r.sym));
+    }
+    say("Checking recent news for warning signs…");
+    await Promise.race([checkNews([...short]), new Promise(r => setTimeout(r, 20000))]);
+    if (!alive()) return;
     scanned = true;
-    say(res.length ? `Updated ${fmt.time(Date.now())} IST` : "");
+    say(`Updated ${fmt.time(Date.now())} IST · news checked for ${short.size} shortlisted stocks`);
     rows = syms.map(stockRow);
     render();
   }

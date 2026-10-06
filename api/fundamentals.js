@@ -6,7 +6,9 @@ const { parseSyms, cached, getJSON, getJSONAuthed, mapLimit, send, round } = req
 const MODULES = "price,summaryDetail,defaultKeyStatistics,financialData,assetProfile,calendarEvents";
 
 // Up to 4 years of annual figures, so scores reward consistency instead of one good (or bad) year
-const SERIES = ["TotalRevenue", "NetIncome", "DilutedEPS", "OperatingCashFlow", "FreeCashFlow", "StockholdersEquity", "TotalDebt", "OrdinarySharesNumber"];
+const SERIES = ["TotalRevenue", "NetIncome", "DilutedEPS", "OperatingCashFlow", "FreeCashFlow", "StockholdersEquity", "TotalDebt", "OrdinarySharesNumber",
+  // for the Piotroski F-score and Altman Z-score
+  "TotalAssets", "CurrentAssets", "CurrentLiabilities", "LongTermDebt", "GrossProfit", "EBIT", "RetainedEarnings", "TotalLiabilitiesNetMinorityInterest"];
 async function history(sym) {
   const now = Math.floor(Date.now() / 1000);
   const url = `https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/${encodeURIComponent(sym)}?symbol=${encodeURIComponent(sym)}&type=${SERIES.map(t => "annual" + t).join(",")}&period1=${now - 6 * 365 * 86400}&period2=${now}`;
@@ -22,6 +24,41 @@ async function history(sym) {
   }
   const years = Object.keys(by).sort().slice(-4).map(d => ({ d, ...by[d] }));
   return years.length >= 2 ? years : null;
+}
+
+// Piotroski F-score: 9 pass/fail checks comparing the latest year with the one before (higher = healthier,
+// improving business). Skips any check whose inputs are missing; returns the score, how many checks ran,
+// and the checks that failed, in plain English.
+function piotroski(Y) {
+  if (Y.length < 2) return {};
+  const [a, b] = [Y[Y.length - 2], Y[Y.length - 1]]; // previous, latest
+  const f = Number.isFinite, checks = [];
+  const add = (pass, fail) => { if (pass != null) checks.push({ pass, fail }); };
+  const roa = y => (f(y.NetIncome) && y.TotalAssets > 0 ? y.NetIncome / y.TotalAssets : null);
+  const lev = y => (y.TotalAssets > 0 ? (f(y.LongTermDebt) ? y.LongTermDebt : f(y.TotalDebt) ? y.TotalDebt : null) / y.TotalAssets : null);
+  const cur = y => (y.CurrentLiabilities > 0 && f(y.CurrentAssets) ? y.CurrentAssets / y.CurrentLiabilities : null);
+  const gm = y => (y.TotalRevenue > 0 && f(y.GrossProfit) ? y.GrossProfit / y.TotalRevenue : null);
+  const turn = y => (y.TotalAssets > 0 && f(y.TotalRevenue) ? y.TotalRevenue / y.TotalAssets : null);
+  const both = (fn, cmp) => (fn(a) != null && fn(b) != null && Number.isFinite(fn(a)) && Number.isFinite(fn(b)) ? cmp(fn(b), fn(a)) : null);
+  add(roa(b) != null ? roa(b) > 0 : null, "not profitable on its assets");
+  add(f(b.OperatingCashFlow) ? b.OperatingCashFlow > 0 : null, "negative operating cash flow");
+  add(both(roa, (x, y) => x > y), "return on assets fell");
+  add(f(b.OperatingCashFlow) && f(b.NetIncome) ? b.OperatingCashFlow > b.NetIncome : null, "cash flow lower than reported profit");
+  add(both(lev, (x, y) => x <= y), "more long-term debt relative to assets");
+  add(both(cur, (x, y) => x > y), "short-term liquidity got worse");
+  add(f(a.OrdinarySharesNumber) && f(b.OrdinarySharesNumber) ? b.OrdinarySharesNumber <= a.OrdinarySharesNumber * 1.005 : null, "issued new shares");
+  add(both(gm, (x, y) => x > y), "gross margin fell");
+  add(both(turn, (x, y) => x > y), "uses its assets less efficiently (asset turnover fell)");
+  return checks.length >= 6 ? { fScore: checks.filter(c => c.pass).length, fMax: checks.length, fFails: checks.filter(c => !c.pass).map(c => c.fail) } : {};
+}
+
+// Altman Z''-score (the version for non-manufacturing and emerging-market companies):
+// above 2.6 = safe, 1.1–2.6 = grey zone, below 1.1 = distress risk. Not meaningful for banks and NBFCs.
+function altman(y) {
+  const f = Number.isFinite;
+  if (!(y.TotalAssets > 0) || ![y.CurrentAssets, y.CurrentLiabilities, y.RetainedEarnings, y.EBIT, y.StockholdersEquity, y.TotalLiabilitiesNetMinorityInterest].every(f) || !(y.TotalLiabilitiesNetMinorityInterest > 0)) return null;
+  const ta = y.TotalAssets;
+  return round(6.56 * (y.CurrentAssets - y.CurrentLiabilities) / ta + 3.26 * y.RetainedEarnings / ta + 6.72 * y.EBIT / ta + 1.05 * y.StockholdersEquity / y.TotalLiabilitiesNetMinorityInterest, 2);
 }
 
 // Multi-year measures from the annual figures (null when there isn't enough history)
@@ -49,6 +86,8 @@ function derive(Y) {
     dilution: first.OrdinarySharesNumber > 0 && last.OrdinarySharesNumber > 0 ? round((last.OrdinarySharesNumber / first.OrdinarySharesNumber - 1) * 100, 1) : null,
     deChange: de(first) != null && de(last) != null ? round(de(last) - de(first), 2) : null,
     eqYrs: eq.length || null,
+    ...piotroski(Y),
+    altmanZ: altman(last),
   };
 }
 const raw = x => (x && typeof x === "object" ? x.raw : x);
