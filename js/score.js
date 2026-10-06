@@ -19,7 +19,7 @@ export const PILLARS = [
   ["quality", "Quality", "Does the business make good money, year after year? (ROE, margins, cash flow)"],
   ["value", "Value", "Is the price reasonable vs its profits and vs its sector? (P/E, P/B, EV/EBITDA, PEG)"],
   ["growth", "Growth", "Have sales and profits grown over several years?"],
-  ["momentum", "Momentum", "Is the share price in a steady uptrend? (risk-adjusted 6M/1Y returns)"],
+  ["momentum", "Momentum", "Has the share price risen strongly over the past year? (12-month return, skipping the latest month)"],
   ["safety", "Safety", "How risky is it? (debt, distress risk, volatility, dilution)"],
   ["income", "Income", "Does it pay you to hold it? (dividend yield)"],
 ];
@@ -39,8 +39,6 @@ const notFin = r => !isFinancial(r);
 // Derived values that aren't stored on the row
 const DERIVED = {
   ey: r => (ok(r.pe) && r.pe > 0 ? 100 / r.pe : null),                                   // earnings yield %, higher = cheaper
-  mom12: r => (ok(r.r1y) && r.volatility > 0 ? r.r1y / r.volatility : null),              // 1Y return per unit of risk
-  mom6: r => (ok(r.r6m) && r.volatility > 0 ? r.r6m / (r.volatility / Math.SQRT2) : null), // 6M return per unit of 6M risk
   profRatio: r => (r.niYrs >= 3 ? r.profYrs / r.niYrs : null),
   fNorm: r => (r.fMax >= 6 ? r.fScore / r.fMax * 9 : null),
 };
@@ -70,13 +68,13 @@ const METRICS = [
   { k: "revGrowth", p: "growth", w: 1, dir: 1, abs: [-5, 20], peer: "all", say: v => `Sales up ${p1(v)}% from a year ago` },
   { k: "epsGrowth", p: "growth", w: 0.75, dir: 1, abs: [-10, 25], peer: "all", say: v => `Profit per share up ${p1(v)}% from a year ago` },
   { k: "revUpYrs", p: "growth", w: 0.75, dir: 1, abs: [0, 3], peer: null, when: r => r.nYrs >= 4, say: v => (v >= 3 ? "Sales grew every single year" : null) },
-  // momentum: returns divided by volatility (as NSE's momentum indices do) so steady climbers beat lottery tickets
-  { k: "mom12", p: "momentum", w: 2, dir: 1, abs: [-0.5, 1.2], peer: "all", say: (v, r) => `Strong, steady 1-year trend: up ${p1(r.r1y)}% without wild swings` },
-  { k: "mom6", p: "momentum", w: 1.5, dir: 1, abs: [-0.5, 1.2], peer: "all", say: (v, r) => `Up ${p1(r.r6m)}% in 6 months, steadily` },
-  { k: "vsSma200", p: "momentum", w: 1, dir: 1, abs: [-15, 15], peer: null, say: v => `Trading ${p1(v)}% above its 200-day average — a long-term uptrend` },
+  // momentum: plain 12-1 momentum, the rule that beat an equal-weight basket in 7 of 9 years in our 10-year backtest
+  // (scaling by volatility or preferring calmer stocks did worse, so neither is used here)
+  { k: "r121", p: "momentum", w: 3, dir: 1, abs: [-10, 40], peer: "all", say: v => `Strong momentum: up ${p1(v)}% over the past year (not counting the last month)` },
+  { k: "vsSma200", p: "momentum", w: 0.5, dir: 1, abs: [-15, 15], peer: null, say: v => `Trading ${p1(v)}% above its 200-day average — a long-term uptrend` },
   // safety
   { k: "de", p: "safety", w: 1.5, dir: -1, abs: [2, 0], peer: null, when: notFin, say: v => (v < 0.05 ? "Practically debt-free" : `Low debt (debt/equity ${v.toFixed(2)})`) },
-  { k: "volatility", p: "safety", w: 1.5, dir: -1, abs: [50, 18], peer: "all", say: v => `Calmer share price than most (volatility ${p1(v)}% a year)` },
+  { k: "volatility", p: "safety", w: 0.75, dir: -1, abs: [50, 18], peer: "all", say: v => `Calmer share price than most (volatility ${p1(v)}% a year)` },
   { k: "beta", p: "safety", w: 0.75, dir: -1, abs: [1.6, 0.7], peer: null, say: v => `Beta ${v.toFixed(2)} — swings less than the market` },
   { k: "altmanZ", p: "safety", w: 1, dir: 1, abs: [1.1, 4], peer: null, when: notFin, say: v => `Altman Z-score ${v.toFixed(1)} — very low risk of financial distress` },
   { k: "cr", p: "safety", w: 0.5, dir: 1, abs: [0.8, 2], peer: null, when: notFin, say: v => `Current ratio ${v.toFixed(2)} — can easily pay this year's bills` },

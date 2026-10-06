@@ -1,8 +1,8 @@
 // Backtest: would the price-based part of our scoring have worked over the last ~10 years?
 //
-// Every month (using weekly closes), score each stock the way the live momentum and safety pillars do:
-// 1-year and 6-month return divided by volatility, plus a tilt to calmer stocks. Buy the top 10 (at most
-// 2 per sector, like the Buy plan) in equal amounts, hold for a month, pay ~0.4% on whatever is traded.
+// Every month (using weekly closes), rank stocks the way the live momentum pillar does: return over the past
+// 12 months, leaving out the latest month. Buy the top 10 (at most 2 per sector, like the Buy plan) in equal
+// amounts, hold for a month, pay ~0.4% on whatever is traded. Other price rules run alongside for comparison.
 //
 // Compared with (a) the Nifty 50 and (b) buying every stock in our list equally each month. (b) is the
 // fairer test: our list is today's index members, so it leaves out companies that collapsed or were dropped
@@ -16,7 +16,7 @@ import { NIFTY50, NEXT50, MIDCAP, STOCKS } from "./universes.js";
 
 const MASTER = [...NIFTY50, ...NEXT50, ...MIDCAP].map(s => s.sym);
 const CHUNK = 25;
-const KEY = "screener-backtest-v2"; // v2: adds the comparison of price rules
+const KEY = "screener-backtest-v3"; // v3: the method is now plain 12-1 momentum
 const COST = 0.004;   // round-trip cost on traded value: charges + slippage
 const TOP = 10, PER_SECTOR = 2;
 
@@ -74,8 +74,8 @@ export function runBacktest({ data, nifty }) {
     for (const c of list) { if (out.length >= TOP) break; const sec = STOCKS.get(c.s)?.sector || "Other"; if ((per[sec] || 0) >= PER_SECTOR) continue; per[sec] = (per[sec] || 0) + 1; out.push(c.s); }
     return out; };
   const RULES = {
-    method: { name: "Our price score: 1-year and 6-month trend ÷ volatility, calmer stocks preferred", pick: c => capped([...c].sort((a, b) => b.score - a.score)) },
-    mom: { name: "Plain momentum: biggest 12-month gain, ignoring the last month", pick: c => capped([...c].sort((a, b) => b.r121 - a.r121)) },
+    method: { name: "Momentum: biggest 12-month gain, ignoring the last month", pick: c => capped([...c].sort((a, b) => b.r121 - a.r121)) },
+    voladj: { name: "Our old rule: 1-year and 6-month trend ÷ volatility, calmer stocks preferred", pick: c => capped([...c].sort((a, b) => b.score - a.score)) },
     lowvol: { name: "Low volatility: the 10 calmest stocks", pick: c => capped([...c].sort((a, b) => a.vol - b.vol)) },
     calmmom: { name: "Momentum among the calmer half of stocks", pick: c => { const med = [...c].sort((a, b) => a.vol - b.vol)[Math.floor(c.length / 2)].vol; return capped(c.filter(x => x.vol <= med).sort((a, b) => b.r121 - a.r121)); } },
     trend: { name: "Trend filter: every stock above its 40-week average, equally", pick: c => c.filter(x => x.above).map(x => x.s) },

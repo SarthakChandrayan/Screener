@@ -87,6 +87,12 @@ function derive(Y) {
     deChange: de(first) != null && de(last) != null ? round(de(last) - de(first), 2) : null,
     eqYrs: eq.length || null,
     sharesOut: Number.isFinite(last.OrdinarySharesNumber) ? last.OrdinarySharesNumber : null,
+    // latest-year figures, used when Yahoo's summary leaves the ratio out (common for Indian stocks)
+    roaY: Number.isFinite(last.NetIncome) && last.TotalAssets > 0 ? round(last.NetIncome / last.TotalAssets * 100, 2) : null,
+    crY: last.CurrentLiabilities > 0 && Number.isFinite(last.CurrentAssets) ? round(last.CurrentAssets / last.CurrentLiabilities, 2) : null,
+    fcfY: Number.isFinite(last.FreeCashFlow) ? last.FreeCashFlow : null,
+    revGrowthY: n >= 2 && Y[n - 2].TotalRevenue > 0 && Number.isFinite(last.TotalRevenue) ? round((last.TotalRevenue / Y[n - 2].TotalRevenue - 1) * 100, 1) : null,
+    epsGrowthY: n >= 2 && Y[n - 2].DilutedEPS > 0 && Number.isFinite(last.DilutedEPS) ? round((last.DilutedEPS / Y[n - 2].DilutedEPS - 1) * 100, 1) : null,
     ...piotroski(Y),
     altmanZ: altman(last),
   };
@@ -104,6 +110,7 @@ async function fetchOne(sym) {
     const ce = r.calendarEvents?.earnings || {};
     const hist = derive(await history(sym).catch(() => null));
     const de = num(fd.debtToEquity);
+    const eps = num(ks.trailingEps), bvps = num(ks.bookValue);
     return {
       name: p.longName || p.shortName || null,
       sector: ap.sector || null,
@@ -129,12 +136,13 @@ async function fetchOne(sym) {
       dy: pct(sd.dividendYield),
       payout: pct(sd.payoutRatio),
       beta: round(num(sd.beta) ?? num(ks.beta)),
-      roe: pct(fd.returnOnEquity),
-      roa: pct(fd.returnOnAssets),
+      // Yahoo often omits these for Indian stocks: fall back to TTM EPS ÷ book value per share, and the latest annual report
+      roe: pct(fd.returnOnEquity) ?? (eps != null && bvps > 0 ? round(eps / bvps * 100, 2) : null),
+      roa: pct(fd.returnOnAssets) ?? hist.roaY ?? null,
       de: de == null ? null : round(de / 100, 3), // Yahoo reports D/E as a percentage
-      cr: round(num(fd.currentRatio)),
-      revGrowth: pct(fd.revenueGrowth),
-      epsGrowth: pct(fd.earningsGrowth),
+      cr: round(num(fd.currentRatio)) ?? hist.crY ?? null,
+      revGrowth: pct(fd.revenueGrowth) ?? hist.revGrowthY ?? null,
+      epsGrowth: pct(fd.earningsGrowth) ?? hist.epsGrowthY ?? null,
       gpm: pct(fd.grossMargins),
       opm: pct(fd.operatingMargins),
       npm: pct(fd.profitMargins),
@@ -142,7 +150,7 @@ async function fetchOne(sym) {
       ebitda: num(fd.ebitda),
       cash: num(fd.totalCash),
       debt: num(fd.totalDebt),
-      fcf: num(fd.freeCashflow),
+      fcf: num(fd.freeCashflow) ?? hist.fcfY ?? null,
       target: round(num(fd.targetMeanPrice)),
       targetHigh: round(num(fd.targetHighPrice)),
       targetLow: round(num(fd.targetLowPrice)),

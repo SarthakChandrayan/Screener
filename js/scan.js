@@ -8,7 +8,7 @@ import { techSummary } from "./tech.js";
 import { buildContext } from "./score.js";
 
 // Technicals are kept for the rest of the (IST) day, so coming back to a page is instant
-const TKEY = "screener-tech-v1";
+const TKEY = "screener-tech-v2"; // v2: adds 12-1 momentum
 export const TECH = new Map((() => { const t = store.get(TKEY, null); return t?.day === istDate() ? Object.entries(t.data) : []; })());
 const saveTech = () => store.set(TKEY, { day: istDate(), data: Object.fromEntries(TECH) });
 
@@ -65,7 +65,7 @@ export function stockRow(s) {
     upside: f.target && price ? (f.target / price - 1) * 100 : null,
     offHigh: w52h && price ? (price / w52h - 1) * 100 : null,
     r1w: t.r1w, r1m: t.r1m, r3m: t.r3m, r6m: t.r6m, r1y: t.r1y, ytd: t.ytd,
-    rsi: t.rsi, vsSma50: t.vsSma50, vsSma200: t.vsSma200, volRatio: t.volRatio, volatility: t.volatility,
+    r121: t.r121, rsi: t.rsi, vsSma50: t.vsSma50, vsSma200: t.vsSma200, volRatio: t.volRatio, volatility: t.volatility,
     // for data checks (js/dataqual.js)
     eps: f.eps, histPx: t.px ?? null, fundAt: fundamentalsAt(s), hasQuote: q.price != null,
     // multi-year history (api/fundamentals.js) and trading facts used by the scorecard

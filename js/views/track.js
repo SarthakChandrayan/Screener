@@ -118,7 +118,7 @@ export function mount(el) {
   // ---- 10-year backtest of the price-based part of the method ----
   function renderBacktest(state = "") {
     const box = $("#tBack", el), r = cachedBacktest();
-    const intro = `<p class="prose">Replays the share-price part of our scoring (steady 1-year and 6-month trends, calmer stocks preferred) every month for about 10 years: buy the top 10 (max 2 per sector), hold a month, pay about 0.4% on every trade. It's compared with the Nifty 50 and with simply buying all ${227} stocks in our list equally.</p>`;
+    const intro = `<p class="prose">Replays the share-price part of our scoring (momentum: the biggest gains over the past year, not counting the last month) every month for about 10 years: buy the top 10 (max 2 per sector), hold a month, pay about 0.4% on every trade. It's compared with the Nifty 50 and with simply buying all ${227} stocks in our list equally.</p>`;
     if (!r) {
       box.innerHTML = panel("Backtest · would the method have worked?", `<div class="pad">${intro}
         <button class="btn amber" id="btRun" type="button" ${state ? "disabled" : ""}>Run the 10-year test</button> <span class="muted small" id="btState">${esc(state || "Downloads about 1 MB of price history the first time; takes a few seconds.")}</span></div>`, { cls: "btest" });
@@ -151,7 +151,8 @@ export function mount(el) {
       </tbody></table></div>
       <p class="muted small pad">A rule only shows real skill if it beats "all stocks equally" in most years, not just on average. Trying several rules and picking whichever did best can also just fit the past, so treat a winner here as a hint, not proof.${r.cagr.strat <= r.cagr.all ? " Because our rule didn't beat the benchmark, the Buy plan currently gives price trends much less weight." : ""}</p>` : ""}
       <details class="explain"><summary>What this test can and can't tell you ▸</summary><ul class="why pad">
-        <li><b>Tested:</b> the share-price part of the score (trend strength divided by volatility, preferring calmer stocks) with monthly rebalancing and trading costs.</li>
+        <li><b>Tested:</b> the share-price part of the score (12-month momentum, skipping the latest month) with monthly rebalancing and trading costs, plus four other price rules for comparison.</li>
+        <li><b>Momentum is flattered most by survivorship bias:</b> many of today's index members joined after big price rises, which momentum is good at catching in hindsight. Expect real results to be well below the backtest.</li>
         <li><b>Not tested:</b> the company-quality, value and growth checks, the red flags and the news scan. Free data doesn't show what a company's figures looked like on past dates, so testing them would quietly use future information.</li>
         <li><b>Survivorship bias:</b> the stock list is today's index members, so companies that collapsed or were dropped are missing. That flatters both the method and "all stocks equally", which is why the fair comparison is between those two, not with the Nifty.</li>
         <li><b>Prices only:</b> dividends are left out on every side, about 1–1.5% a year.</li>
