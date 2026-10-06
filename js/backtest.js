@@ -16,7 +16,7 @@ import { NIFTY50, NEXT50, MIDCAP, STOCKS } from "./universes.js";
 
 const MASTER = [...NIFTY50, ...NEXT50, ...MIDCAP].map(s => s.sym);
 const CHUNK = 25;
-const KEY = "screener-backtest-v1";
+const KEY = "screener-backtest-v2"; // v2: adds the comparison of price rules
 const COST = 0.004;   // round-trip cost on traded value: charges + slippage
 const TOP = 10, PER_SECTOR = 2;
 
@@ -69,45 +69,61 @@ export function runBacktest({ data, nifty }) {
   for (let i = 52; i < weeks.length - 1; i++) if (month(i) !== month(i + 1)) rebal.push(i);
   const last = (a, i) => { for (let j = i; j >= 0 && j > i - 3; j--) if (a[j] > 0) return a[j]; return null; };
 
-  const periods = [];
-  let held = [];
+  // Price rules tested side by side. Each gets the same stocks, dates and costs.
+  const capped = list => { const per = {}, out = [];
+    for (const c of list) { if (out.length >= TOP) break; const sec = STOCKS.get(c.s)?.sector || "Other"; if ((per[sec] || 0) >= PER_SECTOR) continue; per[sec] = (per[sec] || 0) + 1; out.push(c.s); }
+    return out; };
+  const RULES = {
+    method: { name: "Our price score: 1-year and 6-month trend ÷ volatility, calmer stocks preferred", pick: c => capped([...c].sort((a, b) => b.score - a.score)) },
+    mom: { name: "Plain momentum: biggest 12-month gain, ignoring the last month", pick: c => capped([...c].sort((a, b) => b.r121 - a.r121)) },
+    lowvol: { name: "Low volatility: the 10 calmest stocks", pick: c => capped([...c].sort((a, b) => a.vol - b.vol)) },
+    calmmom: { name: "Momentum among the calmer half of stocks", pick: c => { const med = [...c].sort((a, b) => a.vol - b.vol)[Math.floor(c.length / 2)].vol; return capped(c.filter(x => x.vol <= med).sort((a, b) => b.r121 - a.r121)); } },
+    trend: { name: "Trend filter: every stock above its 40-week average, equally", pick: c => c.filter(x => x.above).map(x => x.s) },
+  };
+  const state = Object.fromEntries(Object.keys(RULES).map(k => [k, { held: [], periods: [] }]));
+
   for (let p = 0; p < rebal.length; p++) {
     const k = rebal[p], k2 = rebal[p + 1] ?? weeks.length - 1;
     if (k2 <= k) break;
-    // score every stock with a full year of history up to week k
+    // measure every stock with a full year of history up to week k (nothing after k is used)
     const cands = [];
     for (const s of syms) {
       const a = px[s];
-      const c0 = a[k], c52 = last(a, k - 52), c26 = last(a, k - 26);
-      if (!(c0 > 0 && c52 > 0 && c26 > 0)) continue;
+      const c0 = a[k], c52 = last(a, k - 52), c26 = last(a, k - 26), c4 = last(a, k - 4);
+      if (!(c0 > 0 && c52 > 0 && c26 > 0 && c4 > 0)) continue;
       const rets = [];
-      for (let j = k - 51; j <= k; j++) if (a[j] > 0 && a[j - 1] > 0) rets.push(Math.log(a[j] / a[j - 1]));
+      let sum = 0, n = 0;
+      for (let j = k - 51; j <= k; j++) {
+        if (a[j] > 0 && a[j - 1] > 0) rets.push(Math.log(a[j] / a[j - 1]));
+        if (j > k - 40 && a[j] > 0) { sum += a[j]; n++; }
+      }
       if (rets.length < 40) continue;
       const vol = stdev(rets) * Math.sqrt(52) * 100;
       if (!(vol > 0)) continue;
-      cands.push({ s, m12: (c0 / c52 - 1) * 100 / vol, m6: (c0 / c26 - 1) * 100 / (vol / Math.SQRT2), vol });
+      cands.push({ s, m12: (c0 / c52 - 1) * 100 / vol, m6: (c0 / c26 - 1) * 100 / (vol / Math.SQRT2), vol, r121: c4 / c52 - 1, above: n > 30 && c0 > sum / n });
     }
     if (cands.length < 30) continue;
-    const rank = (k, dir) => { const v = cands.map(c => c[k]).sort((a, b) => a - b); return c => (v.indexOf(c[k]) / (v.length - 1)) * (dir > 0 ? 1 : -1) + (dir > 0 ? 0 : 1); };
+    const rank = (key, dir) => { const v = cands.map(c => c[key]).sort((a, b) => a - b); return c => (v.indexOf(c[key]) / (v.length - 1)) * (dir > 0 ? 1 : -1) + (dir > 0 ? 0 : 1); };
     const r12 = rank("m12", 1), r6 = rank("m6", 1), rv = rank("vol", -1);
     cands.forEach(c => { c.score = 0.45 * r12(c) + 0.35 * r6(c) + 0.2 * rv(c); });
-    cands.sort((a, b) => b.score - a.score);
-    const per = {}, pick = [];
-    for (const c of cands) {
-      if (pick.length >= TOP) break;
-      const sec = STOCKS.get(c.s)?.sector || "Other";
-      if ((per[sec] || 0) >= PER_SECTOR) continue;
-      per[sec] = (per[sec] || 0) + 1;
-      pick.push(c.s);
-    }
     const ret = s => { const a = px[s], b = a[k], e = last(a, k2); return b > 0 && e > 0 ? e / b - 1 : 0; };
-    const turnover = held.length ? pick.filter(s => !held.includes(s)).length / TOP : 1;
-    const strat = pick.reduce((x, s) => x + ret(s), 0) / pick.length - turnover * COST;
-    const all = cands.reduce((x, c) => x + ret(c.s), 0) / cands.length;
-    periods.push({ from: nifty.t[k], to: nifty.t[k2], strat, nifty: nClose[k2] / nClose[k] - 1, all, picks: pick });
-    held = pick;
+    const all = cands.reduce((x, c) => x + ret(c.s), 0) / cands.length, nRet = nClose[k2] / nClose[k] - 1;
+    for (const [key, rule] of Object.entries(RULES)) {
+      const st = state[key], pick = rule.pick(cands);
+      // no stock qualifies (trend filter in a crash) → sit in cash for the month
+      const gross = pick.length ? pick.reduce((x, s) => x + ret(s), 0) / pick.length : 0;
+      const turnover = pick.length ? (st.held.length ? pick.filter(s => !st.held.includes(s)).length / pick.length : 1) : st.held.length ? 1 : 0;
+      st.periods.push({ from: nifty.t[k], to: nifty.t[k2], strat: gross - turnover * COST, nifty: nRet, all, picks: pick });
+      st.held = pick;
+    }
   }
-  return summarize(periods);
+  const main = summarize(state.method.periods);
+  if (!main) return null;
+  main.variants = Object.entries(RULES).map(([key, rule]) => {
+    const r = key === "method" ? main : summarize(state[key].periods);
+    return r && { key, name: rule.name, cagr: r.cagr.strat, maxDD: r.maxDD.strat, yearsBeatAll: r.yearsBeatAll, fullYears: r.fullYears, worstYear: r.worstYear, edge: r.cagr.strat - r.cagr.all };
+  }).filter(Boolean);
+  return main;
 }
 
 function summarize(periods) {

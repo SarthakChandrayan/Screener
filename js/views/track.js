@@ -143,6 +143,13 @@ export function mount(el) {
         ${r.yearly.map(y => `<tr><td class="l">${y.year}${y.months < 10 ? ` <span class="muted small">(${y.months} months)</span>` : ""}</td><td class="${cls(y.strat)}">${fmt.pct(y.strat, 1)}</td><td>${fmt.pct(y.all, 1)}</td><td>${fmt.pct(y.nifty, 1)}</td>
           <td class="l">${y.strat > y.all ? `<span class="up">ahead by ${(y.strat - y.all).toFixed(1)} pts</span>` : `<span class="dn">behind by ${(y.all - y.strat).toFixed(1)} pts</span>`}</td></tr>`).join("")}
       </tbody></table></div>
+      ${r.variants?.length ? `<h3 class="subh">Other price rules, same stocks, dates and costs</h3>
+      <div class="tbl"><table class="t"><thead><tr><th class="l">Rule</th><th>Per year</th><th>vs all stocks</th><th>Worst fall</th><th>Years ahead</th></tr></thead><tbody>
+        ${[...r.variants].sort((a, b) => b.edge - a.edge).map(x => `<tr${x.key === "method" ? ` class="cur"` : ""}><td class="l wrap">${esc(x.name)}${x.key === "method" ? ` <span class="muted small">(used in the Buy plan)</span>` : ""}</td>
+          <td class="${cls(x.cagr)}">${fmt.pct(x.cagr, 1)}</td><td class="${cls(x.edge)}">${x.edge > 0 ? "+" : ""}${x.edge.toFixed(1)} pts</td><td>${fmt.pct(x.maxDD, 0)}</td><td>${x.yearsBeatAll} of ${x.fullYears}</td></tr>`).join("")}
+        <tr class="ref"><td class="l">Benchmark: all stocks equally</td><td>${fmt.pct(r.cagr.all, 1)}</td><td>—</td><td>${fmt.pct(r.maxDD.all, 0)}</td><td>—</td></tr>
+      </tbody></table></div>
+      <p class="muted small pad">A rule only shows real skill if it beats "all stocks equally" in most years, not just on average. Trying several rules and picking whichever did best can also just fit the past, so treat a winner here as a hint, not proof.${r.cagr.strat <= r.cagr.all ? " Because our rule didn't beat the benchmark, the Buy plan currently gives price trends much less weight." : ""}</p>` : ""}
       <details class="explain"><summary>What this test can and can't tell you ▸</summary><ul class="why pad">
         <li><b>Tested:</b> the share-price part of the score (trend strength divided by volatility, preferring calmer stocks) with monthly rebalancing and trading costs.</li>
         <li><b>Not tested:</b> the company-quality, value and growth checks, the red flags and the news scan. Free data doesn't show what a company's figures looked like on past dates, so testing them would quietly use future information.</li>

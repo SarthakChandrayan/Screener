@@ -7,6 +7,7 @@ import { universe, addWatch } from "../state.js";
 import { fetchChart, getQuote, feed } from "../api.js";
 import { dataCheck, dataBadge } from "../dataqual.js";
 import { savePlan } from "../track.js";
+import { cachedBacktest } from "../backtest.js";
 import { techSummary } from "../tech.js";
 import { scanSymbols, stockRow, TECH, coverage, peerContext, checkNews } from "../scan.js";
 import { istDate } from "../util.js";
@@ -85,9 +86,21 @@ function reviewLevel(r, t) {
   return lv < r.price ? lv : r.price * 0.85;
 }
 
+// Let evidence set how much price trends count: if the 10-year backtest (Track record page) showed our
+// price rule doing no better than buying every stock equally, most of the momentum weight moves to quality.
+function evidenceWeights(prof) {
+  const bt = cachedBacktest();
+  if (!bt) return { w: prof.w, bt: null, cut: 0 };
+  const edge = bt.cagr.strat - bt.cagr.all;
+  if (edge > 0 || !prof.w.momentum) return { w: prof.w, bt, cut: 0, edge };
+  const cut = Math.round(prof.w.momentum * 0.7);
+  return { w: { ...prof.w, momentum: prof.w.momentum - cut, quality: (prof.w.quality || 0) + cut }, bt, cut, edge };
+}
+
 function buildPlan(rows, prof, amount, mood) {
   const ctx = peerContext(rows);
-  const scored = rows.map(r => ({ ...r, ...scoreRow(r, { w: prof.w }, ctx), dq: dataCheck(r) }));
+  const ev = evidenceWeights(prof);
+  const scored = rows.map(r => ({ ...r, ...scoreRow(r, { w: ev.w }, ctx), dq: dataCheck(r) }));
   const candidates = scored
     .filter(r => r.score != null && r.coverage >= 0.6 && r.score >= prof.minScore && ok(r.price))
     .filter(r => !r.flags.some(f => f.sev === 2))
@@ -102,24 +115,35 @@ function buildPlan(rows, prof, amount, mood) {
   // Never recommend a stock whose numbers are missing or contradict each other
   const eligible = candidates.filter(r => r.dq.usable);
   const skipped = candidates.filter(r => !r.dq.usable).slice(0, 8);
-  const per = {}, picks = [];
-  for (const r of eligible) {
-    if (picks.length >= prof.n) break;
-    if ((per[r.sector] || 0) >= MAX_PER_SECTOR) continue;
-    per[r.sector] = (per[r.sector] || 0) + 1;
-    picks.push(r);
-  }
-  // Size by conviction (score above 40), capped per stock, then re-spread the excess
-  let w = picks.map(r => Math.max(1, r.score - 40));
-  const tot = w.reduce((a, b) => a + b, 0) || 1;
-  w = w.map(x => x / tot);
-  for (let k = 0; k < 5; k++) {
-    const over = w.reduce((a, x) => a + Math.max(0, x - prof.maxW), 0);
-    if (over < 1e-6) break;
-    const free = w.filter(x => x < prof.maxW).reduce((a, b) => a + b, 0) || 1;
-    w = w.map(x => (x >= prof.maxW ? prof.maxW : x + over * x / free));
-  }
   const cash = mood.level === 0 ? 0.2 : mood.level === 1 ? 0.1 : 0.05;
+  const stockShare = 1 - prof.core - cash;
+  // Choose picks, size them by conviction, and drop any whose share of the money can't buy even one share
+  // (a ₹30,000 stock in a ₹1 lakh plan); the next eligible stock takes its place.
+  const tooDear = new Set();
+  let picks = [], w = [];
+  for (let round = 0; round < 6; round++) {
+    const per = {};
+    picks = [];
+    for (const r of eligible) {
+      if (picks.length >= prof.n) break;
+      if (tooDear.has(r.sym) || (per[r.sector] || 0) >= MAX_PER_SECTOR) continue;
+      per[r.sector] = (per[r.sector] || 0) + 1;
+      picks.push(r);
+    }
+    // conviction (score above 40), capped per stock, then re-spread the excess
+    w = picks.map(r => Math.max(1, r.score - 40));
+    const tot = w.reduce((a, b) => a + b, 0) || 1;
+    w = w.map(x => x / tot);
+    for (let k = 0; k < 5; k++) {
+      const over = w.reduce((a, x) => a + Math.max(0, x - prof.maxW), 0);
+      if (over < 1e-6) break;
+      const free = w.filter(x => x < prof.maxW).reduce((a, b) => a + b, 0) || 1;
+      w = w.map(x => (x >= prof.maxW ? prof.maxW : x + over * x / free));
+    }
+    const dear = picks.filter((r, i) => amount * stockShare * w[i] < r.price);
+    if (!dear.length) break;
+    dear.forEach(r => tooDear.add(r.sym));
+  }
   const core = picks.length ? prof.core : 1 - cash;
   const stockMoney = amount * (1 - core - cash);
   picks.forEach((r, i) => {
@@ -132,7 +156,7 @@ function buildPlan(rows, prof, amount, mood) {
     r.conviction = r.score >= 72 && !r.flags.length ? "High" : "Medium";
   });
   const avoid = scored.filter(r => r.flags.some(f => f.sev === 2)).sort((a, b) => (b.mcapCr || 0) - (a.mcapCr || 0)).slice(0, 6);
-  return { picks, avoid, skipped, core, cash, coreAmt: amount * core, cashAmt: amount * cash, eligible: eligible.length };
+  return { picks, avoid, skipped, core, cash, coreAmt: amount * core, cashAmt: amount * cash, eligible: eligible.length, tooDear: tooDear.size, ev };
 }
 
 export function mount(el) {
@@ -176,6 +200,9 @@ export function mount(el) {
             <div><b>${rup(plan.cashAmt)}</b><span>kept as cash to buy dips</span></div>
           </div>
           <p class="sources">Prices: <b>${feed.source === "upstox" ? "Upstox, live" : "Yahoo Finance, up to 15 min delayed"}</b> · Company figures: <b>Yahoo Finance</b> · Data checked on ${checked} of ${picks.length} picks${plan.skipped.length ? ` · ${plan.skipped.length} skipped for bad data` : ""} · <a class="sym" href="${href("TRACK")}">See how past plans did ›</a></p>
+          ${plan.ev.cut ? `<p class="evidence">📊 <b>Price trends count less in this plan.</b> In your 10-year backtest our price rule returned ${fmt.pct(plan.ev.bt.cagr.strat, 1)} a year vs ${fmt.pct(plan.ev.bt.cagr.all, 1)} for simply buying every stock equally, so most of its weight has moved to company quality. <a class="sym" href="${href("TRACK")}">See the backtest ›</a></p>`
+            : !plan.ev.bt ? `<p class="evidence muted">Tip: run the 10-year backtest on <a class="sym" href="${href("TRACK")}">Track record</a> once, and this plan will weigh price trends by how well they actually worked.</p>` : ""}
+          ${plan.tooDear ? `<p class="muted small">${plan.tooDear} stock${plan.tooDear === 1 ? " was" : "s were"} left out because one share costs more than its part of your ${rup(amount)}.</p>` : ""}
           <p class="prose"><b>How to buy:</b> don't invest it all today. Split it into <b>${mood.parts} equal parts</b> and buy one part about every ${gap} days. Follow the "When to buy" note for each stock. Check this page once a month: if a stock leaves the list or falls below its review level, re-read its story before adding more.</p>
         </div>
       </section>
@@ -242,7 +269,7 @@ export function mount(el) {
     // Only after this is the plan saved to the Track record.
     const ctx = peerContext(rows), short = new Set();
     for (const p of Object.values(PROFILES)) {
-      rows.map(r => ({ r, s: scoreRow(r, { w: p.w }, ctx).score })).filter(x => x.s != null).sort((a, b) => b.s - a.s).slice(0, 25).forEach(x => short.add(x.r.sym));
+      rows.map(r => ({ r, s: scoreRow(r, { w: evidenceWeights(p).w }, ctx).score })).filter(x => x.s != null).sort((a, b) => b.s - a.s).slice(0, 25).forEach(x => short.add(x.r.sym));
     }
     say("Checking recent news for warning signs…");
     await Promise.race([checkNews([...short]), new Promise(r => setTimeout(r, 20000))]);
