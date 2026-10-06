@@ -131,7 +131,8 @@ export async function fetchActions(syms) {
 
 // News red flags per stock ([{sev, cat, title, link, source, time}]), cached in the browser for 12 hours.
 // names: {sym: company name}; only stocks not checked recently are fetched, 10 per request.
-const RKEY = "screener-redflags-v1";
+const RKEY = "screener-redflags-v2"; // v2: stricter company matching
+try { localStorage.removeItem("screener-redflags-v1"); } catch { /* ignore */ }
 let rcache = store.get(RKEY, {});
 export const cachedRedFlags = sym => { const e = rcache[sym]; return e && Date.now() - e.at < 12 * 3600e3 ? e.d : null; };
 export async function fetchRedFlags(syms, names) {
@@ -141,7 +142,7 @@ export async function fetchRedFlags(syms, names) {
   await pool(chunks, 3, async c => {
     try {
       const items = c.map(s => `${s}~${String(names[s]).replace(/[|~]/g, " ").slice(0, 70)}`).join("|");
-      const r = await j("/api/redflags?items=" + encodeURIComponent(items));
+      const r = await j("/api/redflags?items=" + encodeURIComponent(items) + "&v=2");
       for (const [k, v] of Object.entries(r.data || {})) rcache[k] = { at: Date.now(), d: v };
     } catch { /* news is a bonus check; try again next time */ }
   });

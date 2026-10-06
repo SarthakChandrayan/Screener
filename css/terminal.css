@@ -245,6 +245,7 @@ details.more summary { cursor: pointer; color: var(--blue); }
 .trk .t { margin-bottom: 8px; }
 @media (max-width: 560px) { .trk > summary { grid-template-columns: 1fr 1fr; } .trk-res { grid-column: 1 / -1; text-align: left; } }
 .buylist { margin-bottom: 6px; }
+.evidence { font-family: var(--sans); font-size: 13px; margin: 8px 0; padding: 6px 8px; border-left: 3px solid var(--blue); background: #0b1320; }
 .buylist .t td { padding: 7px 10px; font-size: 13px; vertical-align: middle; }
 .buylist .t td .sym { font-family: var(--sans); font-size: 14.5px; }
 .buylist .t b { font-size: 14px; color: var(--amber); }
@@ -308,7 +309,7 @@ details.explain[open] > summary { margin-bottom: 6px; }
 .cal-grid i { width: 16px; height: 16px; background: #1a1a1a; display: block; }
 .cal-grid i.none { background: #151515; outline: 1px dashed #262626; outline-offset: -1px; } .cal-grid i.fut { background: transparent; }
 .cal p { margin: 6px 0 0; }
-.btest { margin-bottom: 6px; } .btest .prose { margin: 0 0 10px; }
+.btest { margin-bottom: 6px; } .btest td.wrap { white-space: normal; min-width: 220px; } .btest tr.cur td { background: #1e1405; } .btest tr.ref td { color: var(--muted); } .btest .prose { margin: 0 0 10px; }
 .bt-s { fill: none; stroke: var(--amber); stroke-width: 2; } .bt-n { fill: none; stroke: var(--blue); stroke-width: 1.5; } .bt-all { fill: none; stroke: #8b8b8b; stroke-width: 1.3; stroke-dasharray: 4 3; }
 .bt-st { fill: var(--amber); } .bt-nt { fill: var(--blue); } .bt-allt { fill: #aaa; }
 .lg.bt-sl { background: var(--amber); } .lg.bt-nl { background: var(--blue); margin-left: 10px; } .lg.bt-alll { background: #8b8b8b; margin-left: 10px; }

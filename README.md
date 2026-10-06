@@ -114,6 +114,9 @@ Code lives in `js/paper.js` (engine) and `js/views/paper.js` (page). Data is sav
   - Replays the share-price part of the method monthly: risk-adjusted 1-year and 6-month trend with a low-volatility tilt, top 10 stocks, at most 2 per sector, about 0.4% cost on trades.
   - Compares it with the Nifty 50 and with buying every stock in our list equally. That second comparison offsets survivorship bias, since our list only contains today's index members.
   - Company figures can't be backtested with free data.
+  - Five price rules are tested side by side on the same stocks, dates and costs: our score, plain 12-1 momentum, low volatility, momentum among the calmer half, and a 40-week trend filter.
+  - **Evidence-weighted Buy plan**: if your backtest shows our price rule didn't beat buying every stock equally, the Buy plan moves 70% of the momentum weight to quality and says so in the manager's note.
+- The Buy plan never gives a stock less money than one share costs. Such stocks are replaced by the next eligible one.
 
 ### Accuracy: holidays, splits and dividends
 
