@@ -3,7 +3,7 @@
 
 import { $, esc, fmt, cls, short, store, toast } from "../util.js";
 import { universe, addWatch, inWatch } from "../state.js";
-import { scanSymbols, stockRow } from "../scan.js";
+import { scanSymbols, stockRow, peerContext } from "../scan.js";
 import { PILLARS, STYLES, scoreRow, verdict, scoreBar } from "../score.js";
 import { dataCheck, dataBadge } from "../dataqual.js";
 import { panel, universeSelect, sortTable, nextSort, href } from "./common.js";
@@ -50,12 +50,15 @@ export function mount(el) {
       <span class="v-ok">55–69 Worth a look</span> — good in places, average in others.<br>
       <span class="v-mid">40–54 Mixed</span> — some real weaknesses.<br>
       <span class="dn">Below 40 Weak right now</span> — the numbers don't support it today.</p>
-      <p class="muted">Each serious red flag (losses, heavy debt, collapsing profits) takes 8 points off; minor ones take 3. Banks and finance companies aren't judged on debt or operating margin, since borrowing is their business. Data comes from Yahoo Finance and can be missing or out of date — always check the company's own results.</p>
+      <p><b>How each number is judged:</b> against rules of thumb <i>and</i> against its peers. Valuation and margins are compared with the same sector (a P/E of 40 is normal for FMCG but expensive for a bank); everything else is compared with all the stocks loaded. Three to four years of annual results count for more than the latest year, so one lucky or unlucky year can't decide the score. Share-price momentum is divided by how jumpy the stock is, as NSE's own momentum indices do, so steady climbers beat lottery tickets.</p>
+      <p><b>Confidence</b> shows how much evidence a score rests on: <span class="conf conf-high">High</span> means most numbers plus several years of history; <span class="conf conf-low">Low</span> means too much is missing to trust it (the Buy plan never uses Low-confidence stocks).</p>
+      <p class="muted">Each serious red flag (losses in several years, heavy debt, profits that don't turn into cash, collapsing profits) takes 8 points off; minor ones take 3; information-only notes (results coming up, unusual volume) take nothing. Banks and finance companies aren't judged on debt or operating margin, since borrowing is their business. Data comes from Yahoo Finance and can be missing or out of date — always check the company's own results.</p>
     </div>`, { cls: "c6" })}
   </div>`;
 
   function scored() {
-    return universe(uni).map(stockRow).map(r => ({ ...r, ...scoreRow(r, style) }));
+    const rows = universe(uni).map(stockRow), ctx = peerContext(rows);
+    return rows.map(r => ({ ...r, ...scoreRow(r, style, ctx) }));
   }
 
   function card(r, i) {
@@ -66,7 +69,7 @@ export function mount(el) {
         <div class="who"><a class="sym" href="${href("DES", r.sym)}">${esc(short(r.sym))}</a><span class="sub">${esc(r.name)} · ${esc(r.sector)}</span></div>
         <div class="big ${v.c}" title="${esc(v.label)}">${r.score}<small>/100</small></div>
       </header>
-      <div class="verdict ${v.c}">${esc(v.label)} <span class="muted">· ${fmt.px(r.price)} <span class="${cls(r.chgPct)}">${fmt.pct(r.chgPct)}</span></span> ${dataBadge(dataCheck(r))}</div>
+      <div class="verdict ${v.c}">${esc(v.label)} <span class="conf conf-${r.confidence.toLowerCase()}" title="How much evidence the score is based on${r.nYrs ? ` (includes ${r.nYrs} years of annual results)` : " (no multi-year history available)"}">${r.confidence} confidence</span> <span class="muted">· ${fmt.px(r.price)} <span class="${cls(r.chgPct)}">${fmt.pct(r.chgPct)}</span></span> ${dataBadge(dataCheck(r))}</div>
       <dl class="pbars">${SHOWN.map(([k, l]) => `<dt>${l}</dt><dd>${scoreBar(r.pillars[k], 90)}<span>${r.pillars[k] ?? "—"}</span></dd>`).join("")}</dl>
       ${r.reasons.length ? `<p class="why-h up">Why it's here</p><ul class="why">${r.reasons.slice(0, 3).map(t => `<li>${esc(t)}</li>`).join("")}</ul>` : ""}
       ${r.flags.length ? `<p class="why-h dn">Watch out</p><ul class="why flags">${r.flags.slice(0, 3).map(f => `<li class="${f.sev === 2 ? "sev" : ""}">${esc(f.text)}</li>`).join("")}</ul>` : `<p class="why-h muted">No red flags in the numbers</p>`}

@@ -6,7 +6,7 @@ import { nameOf, STOCKS } from "../universes.js";
 import { inWatch, addWatch, removeWatch } from "../state.js";
 import { chartPanel } from "../chart.js";
 import { techSummary } from "../tech.js";
-import { TECH, stockRow } from "../scan.js";
+import { TECH, stockRow, peerContext } from "../scan.js";
 import { PILLARS, scoreRow, verdict, scoreBar } from "../score.js";
 import { dataCheck, dataBadge } from "../dataqual.js";
 import { panel, kv, newsList, href } from "./common.js";
@@ -101,10 +101,10 @@ export function mount(el, args, { full = false } = {}) {
     const box = $("#dScore", el);
     if (!box || (!fund && !tech)) return;
     if (tech) TECH.set(sym, tech);
-    const row = stockRow(sym), r = scoreRow(row), v = verdict(r.score), dq = dataCheck(row);
+    const row = stockRow(sym), ctx = peerContext([row]), r = scoreRow(row, undefined, ctx), v = verdict(r.score), dq = dataCheck(row);
     box.innerHTML = `<div class="scorecard">
       <div class="sc-total"><span class="big ${v.c}">${r.score ?? "—"}<small>/100</small></span><span class="${v.c}">${esc(v.label)}</span>
-        <span class="muted small">Balanced style · ${fund && tech ? "based on fundamentals and price trend" : "partial data, still loading"}</span>${fund && tech ? dataBadge(dq) : ""}</div>
+        <span class="muted small">Balanced style · ${fund && tech ? `compared with ${ctx.size} stocks · ${r.confidence.toLowerCase()} confidence${row.nYrs ? ` · ${row.nYrs} years of results` : ""}` : "partial data, still loading"}</span>${fund && tech ? dataBadge(dq) : ""}</div>
       <dl class="pbars">${PILLARS.map(([k, l, d]) => `<dt title="${esc(d)}">${l}</dt><dd>${scoreBar(r.pillars[k], 110)}<span>${r.pillars[k] ?? "—"}</span></dd>`).join("")}</dl>
       <div><p class="why-h up">Strengths</p>${r.reasons.length ? `<ul class="why">${r.reasons.slice(0, 4).map(t => `<li>${esc(t)}</li>`).join("")}</ul>` : `<p class="muted small">Nothing stands out as strong.</p>`}</div>
       <div><p class="why-h dn">Watch out</p>${r.flags.length ? `<ul class="why flags">${r.flags.map(f => `<li class="${f.sev === 2 ? "sev" : ""}">${esc(f.text)}</li>`).join("")}</ul>` : `<p class="muted small">No red flags in the numbers.</p>`}</div>

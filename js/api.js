@@ -71,7 +71,8 @@ export const searchSymbols = q => memoFetch("s:" + q, 600e3, () => j("/api/searc
 export const fetchNews = q => memoFetch("n:" + q, 300e3, () => j("/api/news?q=" + encodeURIComponent(q)).then(r => r.items || []));
 
 // Fundamentals change slowly, so they are cached in the browser for 12 hours.
-const FKEY = "bahi-fund-v1", FTTL = 12 * 3600e3;
+try { localStorage.removeItem("bahi-fund-v1"); } catch { /* old cache format */ }
+const FKEY = "screener-fund-v2", FTTL = 12 * 3600e3;
 let fcache = store.get(FKEY, {});
 export function cachedFundamentals(sym) {
   const e = fcache[sym];
@@ -82,7 +83,8 @@ export const fundamentalsAt = sym => (cachedFundamentals(sym) ? fcache[sym].at :
 // Store fundamentals that arrived some other way (the /api/scan batches); call saveFundamentals() after
 export const primeFundamentals = (sym, d) => { if (d) fcache[sym] = { at: Date.now(), d }; };
 export const saveFundamentals = () => store.set(FKEY, fcache);
-export const fetchScanBatch = syms => j("/api/scan?s=" + encodeURIComponent(syms.join(",")));
+// v=2 matches api/warm.js; bump both when the response format changes so the CDN cache refreshes
+export const fetchScanBatch = syms => j("/api/scan?s=" + encodeURIComponent(syms.join(",")) + "&v=2");
 export async function fetchFundamentals(syms, onProgress) {
   const need = syms.filter(s => !cachedFundamentals(s));
   let done = syms.length - need.length, errors = 0, lastErr = null;
