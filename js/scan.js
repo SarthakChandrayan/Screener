@@ -57,7 +57,8 @@ export function stockRow(s) {
   const price = q.price ?? t.px ?? null, w52h = q.w52h ?? f.w52h;
   return {
     sym: s, name: f.name || nameOf(s, q), sector: STOCKS.get(s)?.sector || f.sector || "Other",
-    price, chgPct: q.changePct, mcapCr: f.mcap ? f.mcap / 1e7 : null,
+    // market cap from Yahoo, or shares × live price when Yahoo leaves it out
+    price, chgPct: q.changePct, mcapCr: f.mcap ? f.mcap / 1e7 : f.sharesOut && price ? f.sharesOut * price / 1e7 : null,
     pe: f.pe, fpe: f.fpe, pb: f.pb, ps: f.ps, peg: f.peg, evEbitda: f.evEbitda,
     roe: f.roe, roa: f.roa, opm: f.opm, npm: f.npm, de: f.de, cr: f.cr,
     revGrowth: f.revGrowth, epsGrowth: f.epsGrowth, dy: f.dy, beta: f.beta,

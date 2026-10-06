@@ -23,17 +23,27 @@ const RULES = [
   [1, "Tax demand", /\b(tax|gst) (demand|notice)/],
 ];
 const KEYWORDS = "(fraud OR SEBI OR auditor OR raid OR pledge OR default OR downgrade OR resigns OR resignation OR probe OR insolvency OR penalty OR \"block deal\" OR \"tax demand\")";
+// Group names shared by many listed companies: never enough on their own to tie a headline to one company
+const GROUP = new Set(["tata", "adani", "bajaj", "reliance", "mahindra", "birla", "aditya", "jsw", "jindal", "godrej", "hdfc", "icici", "sbi", "lic", "hindustan", "bharat", "national", "state", "larsen", "l&t", "torrent", "zydus", "hero", "max", "muthoot", "shriram", "kotak", "axis"]);
 const STOP = new Set(["ltd", "limited", "india", "indian", "the", "of", "and", "&", "bank", "industries", "corp", "corporation", "company", "co", "services", "finance", "financial", "motors", "(india)", "group", "holdings", "international", "enterprises", "technologies", "energy", "power", "life", "insurance", "general"]);
 
 async function scan(sym, name) {
   return cached("rf:" + sym, 6 * 3600e3, async () => {
     const tokens = name.toLowerCase().replace(/[()]/g, " ").split(/\s+/).filter(t => t.length > 2 && !STOP.has(t));
+    const distinct = tokens.filter(t => !GROUP.has(t));
     const short = sym.replace(/\.(NS|BO)$/, "").toLowerCase();
+    // the ticker as a word counts too, unless it is itself a group name (RELIANCE would match Reliance Power)
+    const tickerRe = short.length >= 3 && !GROUP.has(short) ? new RegExp(`\\b${short.replace(/[&\-]/g, m => "\\" + m)}\\b`) : null;
+    const phrase = name.toLowerCase().replace(/\s*\(.*?\)/g, "").replace(/\b(ltd|limited)\.?$/, "").trim().split(/\s+/).slice(0, 2).join(" ");
+    // About this company? The first two words of its name plus a distinctive one ("Tata Steel" needs both, so JSW Steel news doesn't count),
+    // or for names made only of a group word plus a generic one (HDFC Bank, Reliance Industries) the exact phrase.
+    const lead = phrase.split(" ").filter(w => w.length > 1 && w !== "&"); // first two words of the name
+    const about = t => (tickerRe && tickerRe.test(t)) || (distinct.length ? lead.every(w => t.includes(w)) && distinct.some(w => t.includes(w)) : t.includes(phrase));
     const items = await google(`"${name.replace(/\s*\(.*\)/, "")}" ${KEYWORDS} when:90d`);
     const found = [];
     for (const it of items) {
       const t = it.title.toLowerCase();
-      if (tokens.length && !tokens.some(w => t.includes(w)) && !t.includes(short)) continue; // not about this company
+      if (!about(t)) continue; // not about this company
       if (it.time && Date.now() - it.time > 92 * 864e5) continue;
       const rule = RULES.find(([, , re]) => re.test(t));
       if (rule) found.push({ sev: rule[0], cat: rule[1], title: it.title, link: it.link, source: it.source, time: it.time });

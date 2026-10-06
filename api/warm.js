@@ -20,7 +20,7 @@ module.exports = async (req, res) => {
     for (let i = 0; i < syms.length; i += CHUNK) chunks.push(syms.slice(i, i + CHUNK));
     // scan batches (Buy plan, ideas) and 10-year history batches (backtest), same order as the browser
     const urls = [
-      ...chunks.map(c => "/api/scan?s=" + encodeURIComponent(c.join(",")) + "&v=3"),
+      ...chunks.map(c => "/api/scan?s=" + encodeURIComponent(c.join(",")) + "&v=4"),
       ...chunks.map(c => "/api/history?s=" + encodeURIComponent(c.join(",")) + "&v=1"),
       "/api/history?s=" + encodeURIComponent("^NSEI") + "&v=1",
     ];
